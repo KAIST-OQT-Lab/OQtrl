@@ -1,4 +1,4 @@
-# QuAd - Quantum experiment inerface for Adwin systems
+# QuAd - Quantum experiment interface for Adwin systems
 
 This is a repository for the development of a Python-based Adwin control interface for OQT quantum experiments.
 
