@@ -1,6 +1,6 @@
 import numpy as np
 import ADwin as aw
-import OQtrl_settings as Qs
+import OQtrl_settings as OQs
 import ctypes
 import matplotlib.pyplot as plt
 from OQtrl_descriptors import cond_real, OneOf, bit_string
@@ -122,7 +122,7 @@ class sequence:
             if update_period is None:
                 raise ValueError("update period is not defined")
 
-            self.__settings = Qs.slaveSequenceSetting(
+            self.__settings = OQs.slaveSequenceSetting(
                 name=name,
                 duration=duration,
                 update_period=update_period,
@@ -216,7 +216,7 @@ class sequence:
         @property
         def length(self):
             return int(
-                self.__settings.GENERAL.duration / self.__settings.GENERAL.update_period
+                self.__settings.GENERAL.duration / (self.__settings.GENERAL.update_period * UNIT_TIME)
             )
 
     # Master sequence
@@ -240,7 +240,7 @@ class sequence:
 
             self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
             self.__final_sequences: dict = None
-            self.__settings = Qs.masterSequenceSetting(name, duration)
+            self.__settings = OQs.masterSequenceSetting(name, duration)
             self.processed = False
 
         def __len__(self) -> int:
@@ -368,8 +368,8 @@ class sequence:
 
         def __post_init__(self) -> None:
             self.__data: Dict(sequence.masterSequence) = dict()
-            self.__data_settings: Dict(Qs.masterSequenceSetting) = dict()
-            self.settings = Qs.adwinSetting()
+            self.__data_settings: Dict(OQs.masterSequenceSetting) = dict()
+            self.settings = OQs.adwinSetting()
 
         def __repr__(self) -> str:
             return f"Project | Name: {self.name}, Number of Master Sequences: {len(self.__data)}"
@@ -466,7 +466,7 @@ class masterSequenceProcessor:
     def __init__(
         self,
         slaveSequences: List[sequence.slaveSequence] = None,
-        settings: Qs.masterSequenceSetting = None,
+        settings: OQs.masterSequenceSetting = None,
     ) -> None:
         # Check if masterSequences is list of sequence.masterSequence
         if slaveSequences is None:
@@ -483,11 +483,11 @@ class masterSequenceProcessor:
                     raise TypeError(
                         "masterSequences should be list or tuple of sequence.masterSequence"
                     )
-        # Check if settings is Qs.masterSequence_SETTINGS
+        # Check if settings is OQs.masterSequence_SETTINGS
         if settings is None:
             raise ValueError("Requires master sequence settings")
-        elif not isinstance(settings, Qs.masterSequenceSetting):
-            raise TypeError("settings should be Qs.masterSequence_SETTINGS")
+        elif not isinstance(settings, OQs.masterSequenceSetting):
+            raise TypeError("settings should be OQs.masterSequence_SETTINGS")
         else:
             self.settings = settings
 
@@ -605,7 +605,7 @@ class manager:
         return self.__projects[key]
 
     def boot(self):
-        BTL = self.__device.ADwindir + "adoqt" + PROCESSORTYPE + ".btl"
+        BTL = self.__device.ADwindir + "ADwin" + PROCESSORTYPE + ".btl"
         try:
             self.__device.Boot(BTL)
             self.__DeviceNo = self.__device.DeviceNo
@@ -653,7 +653,7 @@ class manager:
 
                 proc_dir = AD_PROCESS_DIR["SINGLE_MODE"]
                 self.__device.Load_Process(proc_dir)
-                self.__device.Start_Process(1)
+                #self.__device.Start_Process(1)
 
             case "CONTINUOUS":
                 proc_dir = AD_PROCESS_DIR["CONTINUOUS_MODE"]
@@ -676,46 +676,80 @@ class manager:
         self.__device.Stop_Process(1)
 
     def __set_params(self, ad_set, ma_set, data):
-        assigner = Qs.settingAssigner(ad_set, ma_set)
+        assigner = OQs.settingAssigner(ad_set, ma_set)
         assigner.assign()
         fin_ad_set = assigner.adw
 
         for option, value in fin_ad_set.show_options().items():
             if option in fin_ad_set.show_params().keys():
                 par_num = fin_ad_set.show_params()[option]
-                print(par_num, value)
-                # self.__device.Set_Par(par_num,value)
+                
+                #For bitstring, convert bitstring to integer
+                if isinstance(value, str):
+                    value = int(value)
+            
+                #print(par_num, value)
+                self.__device.Set_Par(par_num,value)
 
         for types, values in data.items():
             if values is not None:
                 match types:
                     case "DO":
-                        par_num = fin_ad_set._assigned().GLOBAL_DATAS.DO_FIFO_PATTERN
-                        print(par_num, values)
-                    #                        self.__device.SetData_Long(par_num,values)
+                        dat_num = fin_ad_set._assigned().GLOBAL_DATAS.DO_FIFO_PATTERN
+                        # print(par_num, values)
+                        self.__device.SetData_Long(values,dat_num, Startindex=1, Count=len(values))
                     case "AO":
-                        par_num = fin_ad_set._assigned().GLOBAL_DATAS.AO_PATTERN
-                        print(par_num, values)
-
-    #                        self.__device.SetData_Long(par_num,values)
+                        dat_num = fin_ad_set._assigned().GLOBAL_DATAS.AO_PATTERN
+                        # print(par_num, values)
+                        self.__device.SetData_Long(values,dat_num, Startindex=1, Count=len(values))
 
     @property
     def deviceno(self):
         return print(self.__DeviceNo)
 
     @property
-    def settings(self):
-        return self.__settings
-
-    @property
-    def projects(self):
-        return self.__projects
-
-    @property
     def processor_type(self):
         return print(self.__ProceesorType)
+    
+    @property
+    def process_delay(self):
+        return self.__device.Get_Processdelay(1)
 
+    def show_params_status(self,number:int=None, option:str=None, all=True)->dict or str:
+        """return parameters that are now set in ADwin device.
 
+        Args:
+            number (int, optional): if specific parameter number is given, return specific parameter. Defaults to None.
+            option (str, optional): if specific parameter option is given, return specific parameter. Defaults to None.
+            all (bool, optional): if True, return all parameters. Defaults to True.
+
+        Returns:
+            dict or str: dictionary of parameters
+        """
+        #temporal dictionary for parameters
+        temp_params_dict = {}
+
+        #If all is True, return all parameters
+        if all:
+            adwin_params = self.__device.Get_Par_All()
+            for option, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items():
+                temp_params_dict[option] = adwin_params[params-1]
+            return temp_params_dict
+        
+        #If all is False, return specific parameter
+        else:
+            if number is not None and option is None:
+                adwin_params = self.__device.Get_Par(number)
+                option = [options for options, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items() if params == number][0]
+                return f'{option}:,{adwin_params}'
+
+            elif number is None and option is not None:
+                par_num = OQs.adwinSetting._assigned().PARAMS.__dict__.get('DIO_CH_CONFIG')
+                return f'option: {self.__device.Get_Par(par_num)}'
+
+    def show_adwin_status(self):
+        return self.__device.Process_Status(1)        
+    
 class painter:
     def __init__(self, sequences: sequence.masterSequence) -> None:
         self.sequences = sequences

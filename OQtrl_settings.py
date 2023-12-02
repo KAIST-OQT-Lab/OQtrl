@@ -2,6 +2,7 @@ from typing import Literal
 from dataclasses import dataclass, field, asdict
 from OQtrl_descriptors import cond_real, bit_string, OneOf
 
+UNIT_TIME = 1e-9  # 1ns
 
 class adwinLimits:
     @dataclass(frozen=True)
@@ -203,13 +204,16 @@ class masterSequenceSetting:
         return total_options
 
     def set_update_period(self, **kwagrs):
+        """For given types, set the update period to the given value in seconds
+        """
+        
         DO_up = kwagrs.get("DO", None)
         DI_up = kwagrs.get("DI", None)
         AO_up = kwagrs.get("AO", None)
         AI_up = kwagrs.get("AI", None)
 
         if DO_up is not None:
-            self.DO.DO_FIFO_UPDATE_PERIOD = DO_up
+            self.DO.DO_FIFO_UPDATE_PERIOD = int(DO_up/UNIT_TIME)
         if DI_up is not None:
             self.DI.DI_UPDATE_PERIOD = DI_up
         if AO_up is not None:
@@ -378,12 +382,12 @@ class settingAssigner:
 
     def _convert_DIO_CH_CONFIG(self):
         """This should be converted to bit"""
-        self.adw.GENERAL.DIO_CH_CONFIG = int(self.adw.GENERAL.DIO_CH_CONFIG, base=2)
+        self.adw.GENERAL.DIO_CH_CONFIG = self.adw.GENERAL.DIO_CH_CONFIG
 
     def _assign_DO_FIFO_CH_PATTERN(self):
         """This should be converted to bit"""
         if self.mas.DO.DO_FIFO_CH_PATTERN is not None:
-            self.adw.DO.DO_FIFO_CH_PATTERN = int(self.mas.DO.DO_FIFO_CH_PATTERN, base=2)
+            self.adw.DO.DO_FIFO_CH_PATTERN = self.mas.DO.DO_FIFO_CH_PATTERN
 
     def _assign_DO_FIFO_WRITE_COUNT(self):
         if self.mas.DO.DO_FIFO_WRITE_COUNT is not None:

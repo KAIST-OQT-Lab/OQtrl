@@ -5,11 +5,11 @@
 ' Control_long_Delays_for_Stop   = No
 ' Priority                       = High
 ' Version                        = 1
-' ADbasic_Version                = 6.3.1
+' ADbasic_Version                = 6.4.0
 ' Optimize                       = Yes
 ' Optimize_Level                 = 1
 ' Stacksize                      = 1000
-' Info_Last_Save                 = MINHYEOK  MINHYEOK\mhkim
+' Info_Last_Save                 = OQT-TC01  OQT-TC01\OQT_TC01
 '<Header End>
 #Include ADwinPro_All.Inc
 #Define DIO_MODULE 1 
@@ -34,39 +34,39 @@ Init:
   P2_Set_LED(AI_MODULE, 1)
   P2_Set_LED(AO_MODULE, 1)
   'Digital Channel Setting
-  P2_DigProg(DIO_MODULE,Par_1) 'Set Digital Input / Output Ch
-  P2_Dig_FIFO_Mode(DIO_MODULE,3)'Set DIO FIFO as Relative output
+  P2_DigProg(DIO_MODULE, Par_1) 'Set Digital Input / Output Ch
+  P2_Dig_FIFO_Mode(DIO_MODULE, 3)'Set DIO FIFO as Relative output
   P2_Digout_FIFO_Clear(DIO_MODULE) 'Clear FIFO 
-  P2_Digout_FIFO_Enable(DIO_MODULE,Par_31) 'Make Selected Output CH as FIFO
-  P2_Digout_Fifo_Write(DIO_MODULE,Par_32,DATA_30,Par_33)'Write FIFO Pattern
-  P2_Digout_FIFO_Start(Shift_Left(1,DIO_MODULE-1)) 'Start Digital Output FIFO '10'
+  P2_Digout_FIFO_Enable(DIO_MODULE, Par_31) 'Make Selected Output CH as FIFO
+  P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)'Write FIFO Pattern
+  P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1)) 'Start Digital Output FIFO '10'
   
   old_time = Read_Timer()
-  ao_index=1
+  ao_index = 1
   
   'Analog Input Channer Setting
   P2_Set_Average_Filter(AI_MODULE, Par_40)
   P2_Burst_Init(AI_MODULE, Par_41, 0, Par_42, Par_43, Par_44)
-  P2_Burst_Start(Shift_Left(1,AI_MODULE-1))
+  P2_Burst_Start(Shift_Left(1, AI_MODULE - 1))
   
 Event:
   'Calculate times for analog output update period 
   new_time = Read_Timer()
-  time_diff = Calc_TicksToNs(new_time-old_time)
+  time_diff = Calc_TicksToNs(new_time - old_time)
   
   'Digital Output 
-  If (P2_Digout_FIFO_Empty(DIO_MODULE)>510) Then
-    P2_Digout_Fifo_Write(DIO_MODULE,511,DATA_30,1)
+  If (P2_Digout_FIFO_Empty(DIO_MODULE) > Par_32 - 1) Then
+    P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)
   EndIf
   
   'Analog Output  
-  If (time_diff>Par_50) Then
-    P2_DAC8_Packed(AO_MODULE,DATA_50,4*ao_index-3)
+  If (time_diff > Par_50) Then
+    P2_DAC8_Packed(AO_MODULE, DATA_50, 4 * ao_index - 3)
     old_time = Read_Timer_Sync()
     inc(ao_index)
   EndIf
   
-  If ((4*ao_index-3)>9997) Then
+  If ((4 * ao_index - 3) > 9997) Then
     ao_index = 1
   EndIf
     
@@ -74,13 +74,13 @@ Event:
   
   SelectCase Par_41
     Case 1
-      P2_Burst_CRead_Unpacked1(AI_MODULE,Par_42/2,Data_40,1,3)
+      P2_Burst_CRead_Unpacked1(AI_MODULE, Par_42 / 2, Data_40, 1, 3)
     Case 3
-      P2_Burst_CRead_Unpacked2(AI_MODULE,Par_42/2,Data_40,Data_41,1,3)
+      P2_Burst_CRead_Unpacked2(AI_MODULE, Par_42 / 2, Data_40, Data_41, 1, 3)
     Case 15
-      P2_Burst_CRead_Unpacked4(AI_MODULE,Par_42/2,Data_40,Data_41,Data_42,Data_43,1,3)
+      P2_Burst_CRead_Unpacked4(AI_MODULE, Par_42 / 2, Data_40, Data_41, Data_42, Data_43, 1, 3)
     Case 255
-      P2_Burst_CRead_Unpacked8(AI_MODULE,Par_42/2,Data_40,Data_41,Data_42,Data_43,Data_44,Data_45,Data_46,Data_47,1,3)
+      P2_Burst_CRead_Unpacked8(AI_MODULE, Par_42 / 2, Data_40, Data_41, Data_42, Data_43, Data_44, Data_45, Data_46, Data_47, 1, 3)
   EndSelect
 Finish:
   'Turn off LEDs
