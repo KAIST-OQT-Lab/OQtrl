@@ -1,9 +1,9 @@
 import numpy as np
 import ADwin as aw
-import ADoqt_settings as adset
+import QuAd_settings as Qs
 import ctypes
 import matplotlib.pyplot as plt
-from ADoqt_descriptors import *
+from QuAd_descriptors import *
 from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -127,7 +127,7 @@ class sequence:
             if update_period is None:
                 raise ValueError("update period is not defined")
             
-            self.__settings = adset.slaveSequenceSetting(
+            self.__settings = Qs.slaveSequenceSetting(
                 name = name,
                 duration = duration,
                 update_period= update_period,
@@ -246,7 +246,7 @@ class sequence:
             
             self.__raw_sequences:Dict(sequence.slaveSequence) = dict()
             self.__final_sequences:dict = None
-            self.__settings = adset.masterSequenceSetting(name, duration)
+            self.__settings = Qs.masterSequenceSetting(name, duration)
             self.processed = False
 
         def __len__(self) -> int:
@@ -368,8 +368,8 @@ class sequence:
         def __post_init__(self) -> None:
 
             self.__data:Dict(sequence.masterSequence) = dict()
-            self.__data_settings:Dict(adset.masterSequenceSetting) = dict()
-            self.settings = adset.adwinSetting()
+            self.__data_settings:Dict(Qs.masterSequenceSetting) = dict()
+            self.settings = Qs.adwinSetting()
 
         def __repr__(self) -> str:
             return f"Project | Name: {self.name}, Number of Master Sequences: {len(self.__data)}"
@@ -458,7 +458,7 @@ class sequence:
         
 class masterSequenceProcessor():
 
-    def __init__(self,slaveSequences:List[sequence.slaveSequence]=None,settings:adset.masterSequenceSetting=None)->None:
+    def __init__(self,slaveSequences:List[sequence.slaveSequence]=None,settings:Qs.masterSequenceSetting=None)->None:
         #Check if masterSequences is list of sequence.masterSequence
         if slaveSequences is None:
             raise ValueError("Requries masterSequences")
@@ -470,11 +470,11 @@ class masterSequenceProcessor():
                     self.slaveSequences = slaveSequences
                 else:
                     raise TypeError("masterSequences should be list or tuple of sequence.masterSequence")
-        #Check if settings is adset.masterSequence_SETTINGS
+        #Check if settings is Qs.masterSequence_SETTINGS
         if settings is None:
             raise ValueError("Requires master sequence settings")
-        elif not isinstance(settings,adset.masterSequenceSetting):
-            raise TypeError("settings should be adset.masterSequence_SETTINGS")        
+        elif not isinstance(settings,Qs.masterSequenceSetting):
+            raise TypeError("settings should be Qs.masterSequence_SETTINGS")        
         else:
             self.settings = settings
 
@@ -666,7 +666,7 @@ class manager():
 
     def __set_params(self,ad_set,ma_set,data):
         
-        assigner = adset.settingAssigner(ad_set,ma_set)
+        assigner = Qs.settingAssigner(ad_set,ma_set)
         assigner.assign()
         fin_ad_set = assigner.adw
 
