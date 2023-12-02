@@ -1,4 +1,4 @@
-# OQtrl - OQT Quantum experiment congtrol interface
+# OQtrl - OQT Quantum experiment control interface
 
 This is a repository for the development of a Python-based experiment control interface for OQT quantum experiments.
 
