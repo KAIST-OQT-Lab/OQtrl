@@ -16,7 +16,7 @@ from bitarray import bitarray
 # Path of ADbasic process binary file
 AD_PROCESS_DIR = {
     "SINGLE_MODE": NotImplemented,
-    "CONTINUOUS_MODE": "C:/Python/repository/timing_ctrl_proj/Adbasic_template/Master_Process.TC1",
+    "CONTINUOUS_MODE": './ADbasic_process/Master_Process.TC1'
 }
 
 UNIT_TIME = 1e-9  # 1ns
