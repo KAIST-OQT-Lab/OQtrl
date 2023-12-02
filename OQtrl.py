@@ -629,8 +629,8 @@ class manager:
 
     def start(self, project: str = None, **kwargs):
         # If ADwin is not booted, boot ADwin
-        # if not self.__boot_status:
-        #     self.boot()
+        if not self.__boot_status:
+            self.boot()
 
         # Check if proj_key is given
         if project is None:
@@ -660,11 +660,11 @@ class manager:
                 idx = kwargs.get("master_idx", 0)
                 ad_set, ma_set = proj._return_settings(idx)
 
-                # self.__device.Load_Process(proc_dir)
+                self.__device.Load_Process(proc_dir)
                 # Set parameters to adwin
                 self.__set_params(ad_set, ma_set, proj[idx])
 
-                # self.__device.Start_Process(1)
+                self.__device.Start_Process(1)
 
             # SERIES MODE NOT IMPLEMENTED in this version
             case "SERIES":
