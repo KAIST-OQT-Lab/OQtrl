@@ -11,4 +11,5 @@ This project includes the development of the following
 - Developed Dashboard for experiment monitoring
 
 Our project is using `Python 3.11.6` and `ADwin software package 6.00.34.00`
+
 You can download dependencies with `pip install -r requirements.txt`
