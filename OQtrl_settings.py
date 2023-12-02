@@ -1,6 +1,6 @@
 from typing import Literal
 from dataclasses import dataclass, field, asdict
-from OQtrl_descriptors import *
+from OQtrl_descriptors import cond_real, bit_string, OneOf
 
 
 class adwinLimits:
@@ -334,7 +334,7 @@ class settingValidator:
             # for none value options, check if the option is in the master sequence
             for types, options in adw_none:
                 # if options in self.mas.show_options(), assign the value to the option
-                if not options in self.mas.show_options():
+                if options not in self.mas.show_options():
                     raise ValueError(f"Option {options} in {types} is not assigned")
 
         if len(mas_none) > 0:
@@ -376,9 +376,14 @@ class settingAssigner:
                 total_options[option] = value
         return total_options
 
+    def _convert_DIO_CH_CONFIG(self):
+        """This should be converted to bit"""
+        self.adw.GENERAL.DIO_CH_CONFIG = int(self.adw.GENERAL.DIO_CH_CONFIG, base=2)
+
     def _assign_DO_FIFO_CH_PATTERN(self):
+        """This should be converted to bit"""
         if self.mas.DO.DO_FIFO_CH_PATTERN is not None:
-            self.adw.DO.DO_FIFO_CH_PATTERN = self.mas.DO.DO_FIFO_CH_PATTERN
+            self.adw.DO.DO_FIFO_CH_PATTERN = int(self.mas.DO.DO_FIFO_CH_PATTERN, base=2)
 
     def _assign_DO_FIFO_WRITE_COUNT(self):
         if self.mas.DO.DO_FIFO_WRITE_COUNT is not None:
