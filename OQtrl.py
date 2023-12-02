@@ -87,7 +87,7 @@ class sequence:
 
             def __radd__(self, other):
                 sp = miscs.digital.DO_FIFO.string_to_list(self.data)
-                return miscs.digital.DO_FIFO.add_string_lists([sp, other])
+                return miscs.digital.DO_FIFO.add_string_lists([other, sp])
 
             def tolist(self) -> List[int]:
                 """Make pattern to integer list
@@ -191,11 +191,11 @@ class sequence:
 
         @property
         def duration(self):
-            return f"{self.__settings.GENERAL.duration}"
+            return f"{self.__settings.GENERAL.duration * UNIT_TIME}"
 
         @property
         def update_period(self):
-            return f"{self.__settings.GENERAL.update_period}"
+            return f"{self.__settings.GENERAL.update_period * UNIT_TIME}"
 
         @property
         def types(self):
@@ -215,21 +215,20 @@ class sequence:
 
         @property
         def length(self):
-            return int(
-                self.__settings.GENERAL.duration / (self.__settings.GENERAL.update_period * UNIT_TIME)
-            )
+            return int(self.__settings.GENERAL.duration / self.__settings.GENERAL.update_period)
 
     # Master sequence
     @dataclass(repr=False)
     class masterSequence(adwinSequence):
         def __init__(self, name: str = None, duration: float = 1e-6) -> None:
-            # Check if name and duration is given
+            # Check if name is given
             if name is None:
                 raise ValueError("name is not defined")
             # Check if name is string
             else:
                 if not isinstance(name, str):
                     raise TypeError("name should be string")
+            
             # Check if duration is given
             if duration is None:
                 raise ValueError("duration is not defined")
@@ -237,7 +236,8 @@ class sequence:
                 # Check if duration is positive
                 if not isinstance(duration, float | int):
                     raise TypeError("duration should be float or integer")
-
+            #We will use duration divided by unit time (1ns).
+            duration = duration / UNIT_TIME
             self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
             self.__final_sequences: dict = None
             self.__settings = OQs.masterSequenceSetting(name, duration)
@@ -247,7 +247,7 @@ class sequence:
             return len(self.__raw_sequences)
 
         def __repr__(self) -> str:
-            return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.__raw_sequences.values()]}"
+            return f" Master Sequence | Name: {self.name}, Duration: {self.duration * UNIT_TIME} \n slaves: {[x.name for x in self.__raw_sequences.values()]}"
 
         def __str__(self) -> str:
             return f"{self.__raw_sequences}"
@@ -323,7 +323,7 @@ class sequence:
 
         def pre_process(self):
             master_seq_list = list(self.__raw_sequences.values())
-            pre_processor = masterSequenceProcessor(master_seq_list, self.settings)
+            pre_processor = _masterSequenceProcessor(master_seq_list, self.settings)
             pre_processor.fianlize()
 
             self.__settings = pre_processor.return_settings()
@@ -462,7 +462,7 @@ class sequence:
             return self.settings.GENERAL.EXPERIMENT_MODE
 
 
-class masterSequenceProcessor:
+class _masterSequenceProcessor:
     def __init__(
         self,
         slaveSequences: List[sequence.slaveSequence] = None,
@@ -470,7 +470,7 @@ class masterSequenceProcessor:
     ) -> None:
         # Check if masterSequences is list of sequence.masterSequence
         if slaveSequences is None:
-            raise ValueError("Requries masterSequences")
+            raise ValueError("Requries slave sequences")
         else:
             if not isinstance(slaveSequences, list | tuple):
                 raise TypeError(
@@ -524,7 +524,7 @@ class masterSequenceProcessor:
         update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD
         duration = self.settings.GENERAL.duration
         # Find empty channels between sorted DIO sequences
-        tot_channels = set(np.arange(0, max(self.DO_chs)))
+        tot_channels = set(np.arange(0, max(self.DO_chs)+1))
         # Find empty channels
         empty_channels = list(tot_channels - self.DO_chs)
         # Create dump slaves for empty channels
@@ -532,7 +532,7 @@ class masterSequenceProcessor:
             sequence.pattern(
                 types="DO",
                 duration=duration,
-                update_period=self.settings.DO.DO_FIFO_UPDATE_PERIOD,
+                update_period=update_period,
                 channel=ch,
             )
             for ch in empty_channels
@@ -544,9 +544,8 @@ class masterSequenceProcessor:
 
         # DO_Patterns
         DO_patterns = [x.pattern.data for x in self.DO_slaves]
-
         # Adding patterns
-        DO_signals = np.array(reduce(add, DO_patterns), dtype=np.uint32)
+        DO_signals = np.array([int(x,2) for x in reduce(add, DO_patterns)])
         # Correspoding update period time pattern
         time_pattern = np.array([int(update_period)]).repeat(len(DO_signals))
         # Generate DO FIFO pattern (pattern, time, pattern, time ...)
@@ -686,7 +685,7 @@ class manager:
                 
                 #For bitstring, convert bitstring to integer
                 if isinstance(value, str):
-                    value = int(value)
+                    value = int(value, 2)
             
                 #print(par_num, value)
                 self.__device.Set_Par(par_num,value)
@@ -780,7 +779,7 @@ class painter:
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
-        time = np.linspace(0, float(sequence.duration), sequence.length)
+        time = np.linspace(0, float(sequence.duration) * UNIT_TIME, sequence.length)
         # add axes to figure
         ax = figure.add_axes(rect)
         # plot step function

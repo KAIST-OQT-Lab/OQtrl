@@ -177,8 +177,12 @@ class masterSequenceSetting:
         self.AO = masterSequenceSetting.AnaOut()
         self.AI = masterSequenceSetting.AnaIn()
 
+    def __post_init__(self) -> None:
+        self.GENERAL.duration = self.GENERAL.duration / UNIT_TIME
+
+
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration})"
+        return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration * UNIT_TIME}s)"
 
     def todict(self) -> dict:
         return {
@@ -234,8 +238,6 @@ class masterSequenceSetting:
                 raise ValueError("Duration must be specified")
             if self.duration < 0:
                 raise ValueError("Duration must be positive")
-            if self.duration > 100000:
-                raise ValueError("Duration must be less than 100000")
 
     @dataclass
     class DigOut:
