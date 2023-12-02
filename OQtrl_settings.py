@@ -1,6 +1,6 @@
 from typing import Literal
 from dataclasses import dataclass, field, asdict
-from QuAd_descriptors import *
+from OQtrl_descriptors import *
 
 
 class adwinLimits:
