@@ -20,6 +20,7 @@ AD_PROCESS_DIR = {
 }
 
 UNIT_TIME = 1e-9  # 1ns
+DO_UNIT_TIME = 1e-9 * 10 # 10ns 
 PROCESSORTYPE = "12"
 
 
@@ -149,6 +150,9 @@ class sequence:
             # Since adwin accept channel pattern as bitarray,
             # we need to sort channel in descending order
             return int(self.channel) > int(other.channel)
+        
+        def __len__(self):
+            NotImplementedError
 
         def update(self, pattern):
             if not isinstance(pattern, sequence.pattern):
@@ -191,11 +195,11 @@ class sequence:
 
         @property
         def duration(self):
-            return f"{self.__settings.GENERAL.duration * UNIT_TIME}"
+            return f"{self.__settings.GENERAL.duration}"
 
         @property
         def update_period(self):
-            return f"{self.__settings.GENERAL.update_period * UNIT_TIME}"
+            return f"{self.__settings.GENERAL.update_period}"
 
         @property
         def types(self):
@@ -212,10 +216,6 @@ class sequence:
         @property
         def pattern(self):
             return self.__PATTERN
-
-        @property
-        def length(self):
-            return int(self.__settings.GENERAL.duration / self.__settings.GENERAL.update_period)
 
     # Master sequence
     @dataclass(repr=False)
@@ -237,7 +237,7 @@ class sequence:
                 if not isinstance(duration, float | int):
                     raise TypeError("duration should be float or integer")
             #We will use duration divided by unit time (1ns).
-            duration = duration / UNIT_TIME
+            duration = duration
             self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
             self.__final_sequences: dict = None
             self.__settings = OQs.masterSequenceSetting(name, duration)
@@ -247,7 +247,7 @@ class sequence:
             return len(self.__raw_sequences)
 
         def __repr__(self) -> str:
-            return f" Master Sequence | Name: {self.name}, Duration: {self.duration * UNIT_TIME} \n slaves: {[x.name for x in self.__raw_sequences.values()]}"
+            return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.__raw_sequences.values()]}"
 
         def __str__(self) -> str:
             return f"{self.__raw_sequences}"
@@ -521,8 +521,8 @@ class _masterSequenceProcessor:
         self.__merge_slaves_AI()
 
     def __merge_slaves_DO(self):
-        update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD
-        duration = self.settings.GENERAL.duration
+        update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD / DO_UNIT_TIME
+        duration = self.settings.GENERAL.duration / DO_UNIT_TIME
         # Find empty channels between sorted DIO sequences
         tot_channels = set(np.arange(0, max(self.DO_chs)+1))
         # Find empty channels
@@ -662,8 +662,9 @@ class manager:
                 self.__device.Load_Process(proc_dir)
                 # Set parameters to adwin
                 self.__set_params(ad_set, ma_set, proj[idx])
-
+                self.__device.Set_Processdelay(1, ad_set.GENERAL.PROCESS_DELAY)
                 self.__device.Start_Process(1)
+                
 
             # SERIES MODE NOT IMPLEMENTED in this version
             case "SERIES":
@@ -749,6 +750,12 @@ class manager:
     def show_adwin_status(self):
         return self.__device.Process_Status(1)        
     
+    def show_process_delay(self):
+        return self.__device.Get_Processdelay(1)
+    
+    def set_process_delay(self, delay: int):
+        self.__device.Set_Processdelay(1,delay)
+
 class painter:
     def __init__(self, sequences: sequence.masterSequence) -> None:
         self.sequences = sequences
@@ -775,11 +782,13 @@ class painter:
             l, b, w, h = rect
             rect = [l, b - (h + 0.1), w, h]
 
+        self.figure.axes[0].set_xlabel("Time (s)", fontsize=self.configuration.FONT_SIZE)
+
     def plot_DO(self, figure, sequence, rect, color: str = "k"):
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
-        time = np.linspace(0, float(sequence.duration) * UNIT_TIME, sequence.length)
+        time = np.arange(0, float(sequence.duration), float(sequence.update_period))
         # add axes to figure
         ax = figure.add_axes(rect)
         # plot step function

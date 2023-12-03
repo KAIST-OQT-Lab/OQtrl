@@ -3,6 +3,7 @@ from dataclasses import dataclass, field, asdict
 from OQtrl_descriptors import cond_real, bit_string, OneOf
 
 UNIT_TIME = 1e-9  # 1ns
+DO_UNIT_TIME = 1e-9 * 10 # 10ns 
 
 class adwinLimits:
     @dataclass(frozen=True)
@@ -178,11 +179,11 @@ class masterSequenceSetting:
         self.AI = masterSequenceSetting.AnaIn()
 
     def __post_init__(self) -> None:
-        self.GENERAL.duration = self.GENERAL.duration / UNIT_TIME
+        self.GENERAL.duration = self.GENERAL.duration
 
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration * UNIT_TIME}s)"
+        return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration}s)"
 
     def todict(self) -> dict:
         return {
@@ -217,7 +218,7 @@ class masterSequenceSetting:
         AI_up = kwagrs.get("AI", None)
 
         if DO_up is not None:
-            self.DO.DO_FIFO_UPDATE_PERIOD = int(DO_up/UNIT_TIME)
+            self.DO.DO_FIFO_UPDATE_PERIOD = DO_up
         if DI_up is not None:
             self.DI.DI_UPDATE_PERIOD = DI_up
         if AO_up is not None:
