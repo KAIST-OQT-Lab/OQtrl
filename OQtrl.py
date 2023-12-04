@@ -74,6 +74,9 @@ class sequence:
 
         def __str__(self) -> str:
             return f"{self.__pattern.data}"
+        
+        def __len__(self):
+            return len(self.__pattern.data)
 
         @dataclass
         class DO_pattern:
@@ -89,6 +92,9 @@ class sequence:
             def __radd__(self, other):
                 sp = miscs.digital.DO_FIFO.string_to_list(self.data)
                 return miscs.digital.DO_FIFO.add_string_lists([other, sp])
+            
+            def __len__(self):
+                return len(self.data)
 
             def tolist(self) -> List[int]:
                 """Make pattern to integer list
@@ -523,17 +529,18 @@ class _masterSequenceProcessor:
     def __merge_slaves_DO(self):
         update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD / DO_UNIT_TIME
         duration = self.settings.GENERAL.duration / DO_UNIT_TIME
-        # Find empty channels between sorted DIO sequences
-        tot_channels = set(np.arange(0, max(self.DO_chs)+1))
         # Find empty channels
+        tot_channels = set(np.arange(0, max(self.DO_chs)+1))
         empty_channels = list(tot_channels - self.DO_chs)
         # Create dump slaves for empty channels
+        dump_pattern = sequence.pattern('DO', data='0'*len(self.DO_slaves[0].pattern.data))
         dump_slaves = [
-            sequence.pattern(
+            sequence.slaveSequence(
                 types="DO",
                 duration=duration,
                 update_period=update_period,
                 channel=ch,
+                pattern=dump_pattern
             )
             for ch in empty_channels
         ]

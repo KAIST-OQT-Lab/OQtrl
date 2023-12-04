@@ -29,7 +29,7 @@ class adwinSetting:
         Gneral: DIO_CH_CONFIG, PROCESS_DELAY, EXPERIMENT_MODE
         DO: DO_FIFO_CH_PATTERN, DO_FIFO_WRITE_COUNT, DO_FIFO_WRITE_STARTING_INDEX
         DI: None
-        AO: None
+        AO: No
         AI: AI_AVG_MODE, AI_BURST_CHANNELS, AI_BURST_BUFFER_SIZE, AI_BURST_CLOCK_RATE, AI_BURST_TRIGGER_MODE
     Values :
         Corresponding values for each option
