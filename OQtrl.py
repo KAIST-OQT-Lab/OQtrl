@@ -16,11 +16,11 @@ from bitarray import bitarray
 # Path of ADbasic process binary file
 AD_PROCESS_DIR = {
     "SINGLE_MODE": NotImplemented,
-    "CONTINUOUS_MODE": './ADbasic_process/Master_Process.TC1'
+    "CONTINUOUS_MODE": "./ADbasic_process/Master_Process.TC1",
 }
 
 UNIT_TIME = 1e-9  # 1ns
-DO_UNIT_TIME = 1e-9 * 10 # 10ns 
+DO_UNIT_TIME = 1e-9 * 10  # 10ns
 PROCESSORTYPE = "12"
 
 
@@ -74,7 +74,7 @@ class sequence:
 
         def __str__(self) -> str:
             return f"{self.__pattern.data}"
-        
+
         def __len__(self):
             return len(self.__pattern.data)
 
@@ -92,7 +92,7 @@ class sequence:
             def __radd__(self, other):
                 sp = miscs.digital.DO_FIFO.string_to_list(self.data)
                 return miscs.digital.DO_FIFO.add_string_lists([other, sp])
-            
+
             def __len__(self):
                 return len(self.data)
 
@@ -156,7 +156,7 @@ class sequence:
             # Since adwin accept channel pattern as bitarray,
             # we need to sort channel in descending order
             return int(self.channel) > int(other.channel)
-        
+
         def __len__(self):
             NotImplementedError
 
@@ -234,7 +234,7 @@ class sequence:
             else:
                 if not isinstance(name, str):
                     raise TypeError("name should be string")
-            
+
             # Check if duration is given
             if duration is None:
                 raise ValueError("duration is not defined")
@@ -242,7 +242,7 @@ class sequence:
                 # Check if duration is positive
                 if not isinstance(duration, float | int):
                     raise TypeError("duration should be float or integer")
-            #We will use duration divided by unit time (1ns).
+            # We will use duration divided by unit time (1ns).
             duration = duration
             self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
             self.__final_sequences: dict = None
@@ -341,6 +341,11 @@ class sequence:
             # Plotting slave sequences
             bob = painter(self.__raw_sequences.values())
             bob.plot()
+
+        def clear(self) -> None:
+            self.__raw_sequences.clear()
+            self.__final_sequences = None
+            self.processed = False
 
         @property
         def name(self):
@@ -530,17 +535,19 @@ class _masterSequenceProcessor:
         update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD / DO_UNIT_TIME
         duration = self.settings.GENERAL.duration / DO_UNIT_TIME
         # Find empty channels
-        tot_channels = set(np.arange(0, max(self.DO_chs)+1))
+        tot_channels = set(np.arange(0, max(self.DO_chs) + 1))
         empty_channels = list(tot_channels - self.DO_chs)
         # Create dump slaves for empty channels
-        dump_pattern = sequence.pattern('DO', data='0'*len(self.DO_slaves[0].pattern.data))
+        dump_pattern = sequence.pattern(
+            "DO", data="0" * len(self.DO_slaves[0].pattern.data)
+        )
         dump_slaves = [
             sequence.slaveSequence(
                 types="DO",
                 duration=duration,
                 update_period=update_period,
                 channel=ch,
-                pattern=dump_pattern
+                pattern=dump_pattern,
             )
             for ch in empty_channels
         ]
@@ -552,7 +559,7 @@ class _masterSequenceProcessor:
         # DO_Patterns
         DO_patterns = [x.pattern.data for x in self.DO_slaves]
         # Adding patterns
-        DO_signals = np.array([int(x,2) for x in reduce(add, DO_patterns)])
+        DO_signals = np.array([int(x, 2) for x in reduce(add, DO_patterns)])
         # Correspoding update period time pattern
         time_pattern = np.array([int(update_period)]).repeat(len(DO_signals))
         # Generate DO FIFO pattern (pattern, time, pattern, time ...)
@@ -659,7 +666,7 @@ class manager:
 
                 proc_dir = AD_PROCESS_DIR["SINGLE_MODE"]
                 self.__device.Load_Process(proc_dir)
-                #self.__device.Start_Process(1)
+                # self.__device.Start_Process(1)
 
             case "CONTINUOUS":
                 proc_dir = AD_PROCESS_DIR["CONTINUOUS_MODE"]
@@ -671,7 +678,6 @@ class manager:
                 self.__set_params(ad_set, ma_set, proj[idx])
                 self.__device.Set_Processdelay(1, ad_set.GENERAL.PROCESS_DELAY)
                 self.__device.Start_Process(1)
-                
 
             # SERIES MODE NOT IMPLEMENTED in this version
             case "SERIES":
@@ -690,13 +696,13 @@ class manager:
         for option, value in fin_ad_set.show_options().items():
             if option in fin_ad_set.show_params().keys():
                 par_num = fin_ad_set.show_params()[option]
-                
-                #For bitstring, convert bitstring to integer
+
+                # For bitstring, convert bitstring to integer
                 if isinstance(value, str):
                     value = int(value, 2)
-            
-                #print(par_num, value)
-                self.__device.Set_Par(par_num,value)
+
+                # print(par_num, value)
+                self.__device.Set_Par(par_num, value)
 
         for types, values in data.items():
             if values is not None:
@@ -704,11 +710,15 @@ class manager:
                     case "DO":
                         dat_num = fin_ad_set._assigned().GLOBAL_DATAS.DO_FIFO_PATTERN
                         # print(par_num, values)
-                        self.__device.SetData_Long(values,dat_num, Startindex=1, Count=len(values))
+                        self.__device.SetData_Long(
+                            values, dat_num, Startindex=1, Count=len(values)
+                        )
                     case "AO":
                         dat_num = fin_ad_set._assigned().GLOBAL_DATAS.AO_PATTERN
                         # print(par_num, values)
-                        self.__device.SetData_Long(values,dat_num, Startindex=1, Count=len(values))
+                        self.__device.SetData_Long(
+                            values, dat_num, Startindex=1, Count=len(values)
+                        )
 
     @property
     def deviceno(self):
@@ -717,12 +727,14 @@ class manager:
     @property
     def processor_type(self):
         return print(self.__ProceesorType)
-    
+
     @property
     def process_delay(self):
         return self.__device.Get_Processdelay(1)
 
-    def show_params_status(self,number:int=None, option:str=None, all=True)->dict or str:
+    def show_params_status(
+        self, number: int = None, option: str = None, all=True
+    ) -> dict or str:
         """return parameters that are now set in ADwin device.
 
         Args:
@@ -733,35 +745,42 @@ class manager:
         Returns:
             dict or str: dictionary of parameters
         """
-        #temporal dictionary for parameters
+        # temporal dictionary for parameters
         temp_params_dict = {}
 
-        #If all is True, return all parameters
+        # If all is True, return all parameters
         if all:
             adwin_params = self.__device.Get_Par_All()
             for option, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items():
-                temp_params_dict[option] = adwin_params[params-1]
+                temp_params_dict[option] = adwin_params[params - 1]
             return temp_params_dict
-        
-        #If all is False, return specific parameter
+
+        # If all is False, return specific parameter
         else:
             if number is not None and option is None:
                 adwin_params = self.__device.Get_Par(number)
-                option = [options for options, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items() if params == number][0]
-                return f'{option}:{adwin_params}'
+                option = [
+                    options
+                    for options, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items()
+                    if params == number
+                ][0]
+                return f"{option}:{adwin_params}"
 
             elif number is None and option is not None:
-                par_num = OQs.adwinSetting._assigned().PARAMS.__dict__.get('DIO_CH_CONFIG')
-                return f'option: {self.__device.Get_Par(par_num)}'
+                par_num = OQs.adwinSetting._assigned().PARAMS.__dict__.get(
+                    "DIO_CH_CONFIG"
+                )
+                return f"option: {self.__device.Get_Par(par_num)}"
 
     def show_adwin_status(self):
-        return self.__device.Process_Status(1)        
-    
+        return self.__device.Process_Status(1)
+
     def show_process_delay(self):
         return self.__device.Get_Processdelay(1)
-    
+
     def set_process_delay(self, delay: int):
-        self.__device.Set_Processdelay(1,delay)
+        self.__device.Set_Processdelay(1, delay)
+
 
 class painter:
     def __init__(self, sequences: sequence.masterSequence) -> None:
@@ -789,7 +808,9 @@ class painter:
             l, b, w, h = rect
             rect = [l, b - (h + 0.1), w, h]
 
-        self.figure.axes[0].set_xlabel("Time (s)", fontsize=self.configuration.FONT_SIZE)
+        self.figure.axes[0].set_xlabel(
+            "Time (s)", fontsize=self.configuration.FONT_SIZE
+        )
 
     def plot_DO(self, figure, sequence, rect, color: str = "k"):
         if rect is None:

@@ -3,7 +3,8 @@ from dataclasses import dataclass, field, asdict
 from OQtrl_descriptors import cond_real, bit_string, OneOf
 
 UNIT_TIME = 1e-9  # 1ns
-DO_UNIT_TIME = 1e-9 * 10 # 10ns 
+DO_UNIT_TIME = 1e-9 * 10  # 10ns
+
 
 class adwinLimits:
     @dataclass(frozen=True)
@@ -181,7 +182,6 @@ class masterSequenceSetting:
     def __post_init__(self) -> None:
         self.GENERAL.duration = self.GENERAL.duration
 
-
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration}s)"
 
@@ -209,9 +209,8 @@ class masterSequenceSetting:
         return total_options
 
     def set_update_period(self, **kwagrs):
-        """For given types, set the update period to the given value in seconds
-        """
-        
+        """For given types, set the update period to the given value in seconds"""
+
         DO_up = kwagrs.get("DO", None)
         DI_up = kwagrs.get("DI", None)
         AO_up = kwagrs.get("AO", None)
