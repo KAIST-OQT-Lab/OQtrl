@@ -28,7 +28,6 @@ Dim Data_44[10000], Data_45[10000] As Long
 Dim Data_46[10000], Data_47[10000] As Long
 
 Init:
-  ProcessDelay = 500
   'Turn on LED of the Modules
   P2_Set_LED(DIO_MODULE, 1)
   P2_Set_LED(AI_MODULE, 1)
