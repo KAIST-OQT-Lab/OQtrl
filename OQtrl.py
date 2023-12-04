@@ -741,7 +741,7 @@ class manager:
             if number is not None and option is None:
                 adwin_params = self.__device.Get_Par(number)
                 option = [options for options, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items() if params == number][0]
-                return f'{option}:,{adwin_params}'
+                return f'{option}:{adwin_params}'
 
             elif number is None and option is not None:
                 par_num = OQs.adwinSetting._assigned().PARAMS.__dict__.get('DIO_CH_CONFIG')
