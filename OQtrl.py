@@ -44,7 +44,6 @@ class sequence:
         def update(self, data):
             if data is None:
                 return
-
             match self.types:
                 case "DO":
                     up_pattern = sequence.pattern.DO_pattern(data=data)
@@ -67,7 +66,7 @@ class sequence:
 
         @property
         def data(self):
-            return self.__pattern
+            return self.__pattern.data
 
         def __repr__(self) -> str:
             return f"Pattern | Type: {self.types}, Data: {self.__pattern.data}"
@@ -119,6 +118,7 @@ class sequence:
 
     class slaveSequence(adwinSequence):
         def __init__(self, **kwargs) -> None:
+
             name = kwargs.get("name", None)
             duration = kwargs.get("duration", None)
             update_period = kwargs.get("update_period", None)
@@ -138,19 +138,19 @@ class sequence:
             )
 
             if pattern is None:
-                self.__PATTERN = sequence.pattern(types)
+                self.pattern = sequence.pattern(types)
 
             else:
                 if not isinstance(pattern, sequence.pattern):
                     raise TypeError("pattern is not sequence.pattern")
                 else:
-                    self.__PATTERN = pattern
+                    self.pattern = pattern
 
         def __repr__(self) -> str:
             return f"Adwin {self.types} Sequence | Name: {self.name}"
 
         def __str__(self) -> str:
-            return f"{self.__PATTERN.data}"
+            return f"{self.pattern.data}"
 
         def __lt__(self, other):
             # Since adwin accept channel pattern as bitarray,
@@ -160,16 +160,16 @@ class sequence:
         def __len__(self):
             NotImplementedError
 
-        def update(self, pattern):
-            if not isinstance(pattern, sequence.pattern):
+        def update(self, new_pattern):
+            if not isinstance(new_pattern, sequence.pattern):
                 raise TypeError("pattern is not sequence.pattern")
-            self.__PATTERN.update(pattern)
+            self.pattern.update(new_pattern)
 
-        def append(self, pattern):
-            self.__PATTERN.append(pattern)
+        def append(self, new_pattern):
+            self.pattern.append(new_pattern)
 
         def delete(self):
-            self.__PATTERN = None
+            self.pattern = None
 
         def plot(self, **kwargs):
             figure = kwargs.get("figure", None)
@@ -193,7 +193,7 @@ class sequence:
             return figure
 
         def add_note(self, note: str):
-            self.__note = note
+            self.note = note
 
         @property
         def name(self):
@@ -214,14 +214,6 @@ class sequence:
         @property
         def channel(self):
             return f"{self.__settings.GENERAL.channel}"
-
-        @property
-        def note(self):
-            return self.__note
-
-        @property
-        def pattern(self):
-            return self.__PATTERN
 
     # Master sequence
     @dataclass(repr=False)
@@ -783,7 +775,7 @@ class manager:
 
 
 class painter:
-    def __init__(self, sequences: sequence.masterSequence) -> None:
+    def __init__(self, sequences: sequence.slaveSequence) -> None:
         self.sequences = sequences
         self.configuration = painter.plot_configuration()
         self.figure = None
