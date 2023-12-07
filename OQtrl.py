@@ -66,7 +66,7 @@ class sequence:
 
         @property
         def data(self):
-            return self.__pattern.data
+            return self.__pattern
 
         def __repr__(self) -> str:
             return f"Pattern | Type: {self.types}, Data: {self.__pattern.data}"
