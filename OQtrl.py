@@ -158,7 +158,7 @@ class sequence:
             return int(self.channel) > int(other.channel)
 
         def __len__(self):
-            NotImplementedError
+            return len(self.pattern)
 
         def update(self, new_pattern):
             if not isinstance(new_pattern, sequence.pattern):
@@ -808,7 +808,7 @@ class painter:
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
-        time = np.arange(0, float(sequence.duration), float(sequence.update_period))
+        time = np.linspace(0, float(sequence.duration), len(sequence.pattern),endpoint=False)
         # add axes to figure
         ax = figure.add_axes(rect)
         # plot step function
