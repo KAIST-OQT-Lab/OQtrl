@@ -248,13 +248,91 @@ class sequence:
             raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
 
             # update pattern
-            ramp_pattern = self.gen_pattern(raw_ramp_pattern, init_time, end_time, self.duration, self.update_period)
+            ramp_pattern = self.gen_pattern(
+                raw_ramp_pattern, init_time, end_time, self.duration, self.update_period
+            )
 
             self.pattern.update(ramp_pattern)
 
             return self.pattern
 
-        def
+        def gen_sin(self, amp, freq, phase=0, offset=0):
+            if self.types == "AO":
+                pass
+            else:
+                raise ValueError(
+                    f"Generate sin pattern does not support for {self.types}"
+                )
+            # make sin pattern
+            t = np.arange(0, self.duration, self.update_period)
+            sin_pattern = amp * np.sin(2 * np.pi * freq * t + phase) + offset
+            # update pattern
+            self.pattern.update(sin_pattern)
+
+            return self.pattern
+
+        def gen_sqaure(self, amp, freq, duty=0, phase=0, offset=0):
+            if self.types == "AO":
+                pass
+            else:
+                raise ValueError(
+                    f"Generate square pattern does not support for {self.types}"
+                )
+            # make square pattern
+            t = np.arange(0, self.duration, self.update_period)
+            square_pattern = (
+                amp * signal.square(2 * np.pi * freq * t + phase, duty=duty) + offset
+            )
+            # update pattern
+            self.pattern.update(square_pattern)
+
+            return self.pattern
+
+        def gen_sawtooth(self, amp, freq, phase=0, offset=0, width=1):
+            if self.types == "AO":
+                pass
+            else:
+                raise ValueError(
+                    f"Generate sawtooth pattern does not support for {self.types}"
+                )
+            # make sawtooth pattern
+            t = np.arange(0, self.duration, self.update_period)
+            sawtooth_pattern = (
+                amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width)
+                + offset
+            )
+            # update pattern
+            self.pattern.update(sawtooth_pattern)
+
+            return self.pattern
+
+        def gen_gaussian(self, amp, freq, std, offset, sym=True):
+            if self.types == "AO":
+                pass
+            else:
+                raise ValueError(
+                    f"Generate gaussian pattern does not support for {self.types}"
+                )
+            # make gaussian pattern
+            t = np.arange(0, self.duration, self.update_period)
+            period = 1 / freq
+            std = std / self.update_period
+            num_samples = len(np.arange(0, period, self.update_period))
+
+            gaussian_pattern = (
+                amp * signal.windows.gaussian(num_samples, std, sym) + offset
+            )
+
+            i = len(gaussian_pattern)
+            while i < len(t):
+                gaussian_pattern = np.append(gaussian_pattern, gaussian_pattern)
+                i = len(gaussian_pattern)
+
+            gaussian_pattern = gaussian_pattern[: len(t)]
+            # update pattern
+            self.pattern.update(gaussian_pattern)
+
+            return self.pattern
 
         @property
         def name(self):
