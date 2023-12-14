@@ -77,7 +77,7 @@ class sequence:
         def __len__(self):
             return len(self.__pattern.data)
 
-        @dataclass
+        @dataclass()
         class DO_pattern:
             data: bit_string = bit_string(maxsize=511)
             state: bit_string = bit_string(minsize=1, maxsize=1)
@@ -106,7 +106,7 @@ class sequence:
 
         @dataclass
         class DI_pattern:
-            data = None
+            data = List[int] = field(default_factory=list)
 
         @dataclass
         class AO_pattern:
@@ -114,11 +114,10 @@ class sequence:
 
         @dataclass
         class AI_pattern:
-            data = None
+            data = List[int] = field(default_factory=list)
 
     class slaveSequence(adwinSequence):
         def __init__(self, **kwargs) -> None:
-
             name = kwargs.get("name", None)
             duration = kwargs.get("duration", None)
             update_period = kwargs.get("update_period", None)
@@ -808,7 +807,9 @@ class painter:
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
-        time = np.linspace(0, float(sequence.duration), len(sequence.pattern),endpoint=False)
+        time = np.linspace(
+            0, float(sequence.duration), len(sequence.pattern), endpoint=False
+        )
         # add axes to figure
         ax = figure.add_axes(rect)
         # plot step function
