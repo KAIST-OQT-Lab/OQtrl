@@ -22,6 +22,15 @@ class adwinLimits:
         AI_AVG_MODE_5: int = 1333
 
 
+@dataclass()
+class plotParams:
+    FIG_SIZE = (5, 3)
+    DPI = 600
+    LINEWIDTH = 2
+    INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
+    FONT_SIZE = 10  # font size for axis label
+
+
 @dataclass(init=False)
 class adwinSetting:
     """ADWIN settings class
