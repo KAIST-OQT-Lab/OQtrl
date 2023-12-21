@@ -25,13 +25,15 @@ PROCESSORTYPE = "12"
 
 
 class painter:
-    def __init__(self, sequences: sequence.slaveSequence) -> None:
+    def __init__(self, sequences: slaveSequence) -> None:
         self.sequences = sequences
         self.configuration = painter.plot_configuration()
         self.figure = None
 
     def plot(self):
-        self.figure = plt.figure(figsize=(5, 3), dpi=500)
+        self.figure = plt.figure(
+            figsize=self.configuration.FIG_SIZE, dpi=self.configuration.DPI
+        )
         rect = self.configuration.INIT_RECT
 
         for sequence in self.sequences:
@@ -107,8 +109,10 @@ class painter:
     def plot_AI(self, figure, sequence, rect, color: str = "k"):
         pass
 
-    @dataclass(frozen=True)
+    @dataclass()
     class plot_configuration:
+        FIG_SIZE = (5, 3)
+        DPI = 600
         LINEWIDTH = 2
         INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
         FONT_SIZE = 10  # font size for axis label
@@ -308,7 +312,6 @@ class miscs:
                 return reduce(np.char.add, lists).tolist()
 
 
-
 class patternGenerator:
     @staticmethod
     def __validate_condition(init_volt, end_volt, init_time, end_time, duration):
@@ -332,9 +335,7 @@ class patternGenerator:
         if init_time == end_time:
             raise ValueError("init_time should be different from end_time")
 
-    def update_pattern(
-        self, pattern, init_time=0, end_time=None):
-
+    def update_pattern(self, pattern, init_time=0, end_time=None):
         duration = self.duration
         update_period = self.update_period
 
@@ -360,7 +361,7 @@ class patternGenerator:
         raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
 
         # update pattern
-        ramp_pattern = self.gen_pattern(raw_ramp_pattern,init_time,end_time)
+        ramp_pattern = self.gen_pattern(raw_ramp_pattern, init_time, end_time)
 
         self.pattern.update(ramp_pattern)
 
@@ -402,8 +403,7 @@ class patternGenerator:
         duration = float(self.duration)
         t = np.arange(0, duration, update_period)
         sawtooth_pattern = (
-            amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width)
-            + offset
+            amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width) + offset
         )
         # update pattern
         self.pattern.update(sawtooth_pattern)
@@ -411,7 +411,6 @@ class patternGenerator:
         return self.pattern
 
     def gen_gaussian(self, amp, freq, std, offset=0, sym=True):
-
         # make gaussian pattern
         update_period = float(self.update_period)
         duration = float(self.duration)
@@ -420,9 +419,7 @@ class patternGenerator:
         std = std / update_period
         num_samples = len(np.arange(0, period, update_period))
 
-        gaussian_pattern = (
-            amp * signal.windows.gaussian(num_samples, std, sym) + offset
-        )
+        gaussian_pattern = amp * signal.windows.gaussian(num_samples, std, sym) + offset
 
         i = len(gaussian_pattern)
         while i < len(t):
@@ -435,9 +432,9 @@ class patternGenerator:
 
         return self.pattern
 
-@dataclass
-class digitalPattern():
 
+@dataclass
+class digitalPattern:
     data: bit_string = bit_string(maxsize=511)
 
     def __add__(self, other):
@@ -445,16 +442,14 @@ class digitalPattern():
         op = miscs.digital.DO_FIFO.string_to_list(other.data)
         np = miscs.digital.DO_FIFO.add_string_lists([sp, op])
         return np
-    
-    def __radd__(self, other):
 
+    def __radd__(self, other):
         sp = miscs.digital.DO_FIFO.string_to_list(self.data)
         return miscs.digital.DO_FIFO.add_string_lists([other, sp])
-    
-    def __len__(self):
 
+    def __len__(self):
         return len(self.data)
-    
+
     # def tolist(self) -> List[int]:
     #     """Make pattern to integer list
     #     Ex) '110011' --> [1,1,0,0,1,1]
@@ -463,22 +458,21 @@ class digitalPattern():
     #         List[int]: bit pattern integer list
     #     """
     #     return bitarray(self.data).tolist()
-    
-@dataclass
-class analogPattern():
 
+
+@dataclass
+class analogPattern:
     data: List[float] = None
 
-@dataclass
-class sequence():
 
+@dataclass
+class sequence:
     name: str
     duration: cond_real = cond_real(minvalue=1e-9, types=float)
-    
 
-@ dataclass()
+
+@dataclass()
 class slaveSequence(sequence):
-    
     types: Literal["DO", "DI", "AO", "AI"] = OneOf("DO", "DI", "AO", "AI")
     update_period: float = None
     channel: cond_real = cond_real(minvalue=0, maxvalue=31, types=int)
@@ -494,9 +488,9 @@ class slaveSequence(sequence):
             types=self.types,
             channel=self.channel,
         )
-        
+
         if self.types == "DO" or self.types == "DI":
-            self.pattern = digitalPattern('0')
+            self.pattern = digitalPattern("0")
         elif self.types == "AO" or self.types == "AI":
             self.pattern = analogPattern()
 
@@ -544,29 +538,30 @@ class slaveSequence(sequence):
 
         return figure
 
+
 class masterSequence(sequence):
     def __init__(self, name: str = None, duration: float = 1e-6) -> None:
-            # Check if name is given
-            if name is None:
-                raise ValueError("name is not defined")
-            # Check if name is string
-            else:
-                if not isinstance(name, str):
-                    raise TypeError("name should be string")
+        # Check if name is given
+        if name is None:
+            raise ValueError("name is not defined")
+        # Check if name is string
+        else:
+            if not isinstance(name, str):
+                raise TypeError("name should be string")
 
-            # Check if duration is given
-            if duration is None:
-                raise ValueError("duration is not defined")
-            else:
-                # Check if duration is positive
-                if not isinstance(duration, float | int):
-                    raise TypeError("duration should be float or integer")
-            # We will use duration divided by unit time (1ns).
-            duration = duration
-            self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
-            self.__final_sequences: dict = None
-            self.__settings = OQs.masterSequenceSetting(name, duration)
-            self.processed = False
+        # Check if duration is given
+        if duration is None:
+            raise ValueError("duration is not defined")
+        else:
+            # Check if duration is positive
+            if not isinstance(duration, float | int):
+                raise TypeError("duration should be float or integer")
+        # We will use duration divided by unit time (1ns).
+        duration = duration
+        self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
+        self.__final_sequences: dict = None
+        self.__settings = OQs.masterSequenceSetting(name, duration)
+        self.processed = False
 
     def __len__(self) -> int:
         return len(self.__raw_sequences)
@@ -589,9 +584,7 @@ class masterSequence(sequence):
                     "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
                 )
             else:
-                if all(
-                    isinstance(x, sequence.slaveSequence) for x in slaveSequence
-                ):
+                if all(isinstance(x, sequence.slaveSequence) for x in slaveSequence):
                     self.__raw_sequences += slaveSequence
                 else:
                     raise TypeError(
@@ -680,6 +673,7 @@ class masterSequence(sequence):
 
     def _return_final_sequences(self):
         return self.__final_sequences
+
     pass
 
 
@@ -687,9 +681,10 @@ class sequence:
     """
     Sequence classes for adoqt
     """
+
     # Master sequence
     @dataclass(repr=False)
-    class masterSequence(
+    class masterSequence:
         def __init__(self, name: str = None, duration: float = 1e-6) -> None:
             # Check if name is given
             if name is None:
@@ -827,7 +822,7 @@ class sequence:
             return self.__final_sequences
 
     @dataclass(repr=False)
-    class project(
+    class project:
         """This is the second layer of the sequence, a collection class of multiple Master Sequences.
 
         Raises:
@@ -1319,4 +1314,3 @@ class manager:
 
     def set_process_delay(self, delay: int):
         self.__device.Set_Processdelay(1, delay)
-
