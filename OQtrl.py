@@ -24,6 +24,291 @@ DO_UNIT_TIME = 1e-9 * 10  # 10ns
 PROCESSORTYPE = "12"
 
 
+class painter:
+    def __init__(self, sequences: sequence.slaveSequence) -> None:
+        self.sequences = sequences
+        self.configuration = painter.plot_configuration()
+        self.figure = None
+
+    def plot(self):
+        self.figure = plt.figure(figsize=(5, 3), dpi=500)
+        rect = self.configuration.INIT_RECT
+
+        for sequence in self.sequences:
+            match sequence.types:
+                case "DO":
+                    self.plot_DO(self.figure, sequence, rect)
+                case "DI":
+                    self.plot_DI(self.figure, sequence, rect)
+                case "AO":
+                    self.plot_AO(self.figure, sequence, rect)
+                case "AI":
+                    self.plot_AI(self.figure, sequence, rect)
+                case _:
+                    raise ValueError(f"Invalid type {sequence.types}")
+
+            l, b, w, h = rect
+            rect = [l, b - (h + 0.1), w, h]
+
+        self.figure.axes[0].set_xlabel(
+            "Time (s)", fontsize=self.configuration.FONT_SIZE
+        )
+
+    def plot_DO(self, figure, sequence, rect, color: str = "k"):
+        if rect is None:
+            rect = self.configuration.INIT_RECT
+        # Generate time array for x axis
+        time = np.linspace(
+            0, float(sequence.duration), len(sequence.pattern), endpoint=False
+        )
+        # add axes to figure
+        ax = figure.add_axes(rect)
+        # plot step function
+        ax.step(
+            time,
+            sequence.pattern._data.tolist(),
+            where="post",
+            color=color,
+            linewidth=self.configuration.LINEWIDTH,
+        )
+        # y axis label = sequence name
+        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
+        ax.set_ylabel(name, fontsize=self.configuration.FONT_SIZE)
+        plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
+
+        self.figure = figure
+
+    def plot_DI(self, figure, sequence, rect, color: str = "k"):
+        pass
+
+    def plot_AO(self, figure, sequence, rect, color: str = "k"):
+        if rect is None:
+            rect = self.configuration.INIT_RECT
+        # Generate time array for x axis
+        time = np.linspace(
+            0, float(sequence.duration), len(sequence.pattern._data), endpoint=False
+        )
+        # add axes to figure
+        ax = figure.add_axes(rect)
+        # plot
+        ax.plot(
+            time,
+            sequence.pattern._data,
+            color=color,
+            linewidth=self.configuration.LINEWIDTH,
+        )
+        # y axis label = sequence name
+        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
+        ax.set_ylabel(name, fontsize=self.configuration.FONT_SIZE)
+        plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
+
+        self.figure = figure
+
+    def plot_AI(self, figure, sequence, rect, color: str = "k"):
+        pass
+
+    @dataclass(frozen=True)
+    class plot_configuration:
+        LINEWIDTH = 2
+        INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
+        FONT_SIZE = 10  # font size for axis label
+
+
+class miscs:
+    @staticmethod
+    def slaves_seq_finder(slaveSequences, **kwagrs):
+        """Find master sequences by type
+
+        Args:
+            masterSequences (Dict[int,sequence.masterSequence]): _description_
+
+        Raises:
+            TypeError: if masterSequences is not Dict[int,sequence.masterSequence], raise TypeError
+
+        Returns:
+            list: list of sorted master sequences
+        """
+        DO_slaves = list()
+        AO_slaves = list()
+        DI_slaves = list()
+        AI_slaves = list()
+
+        # Find slave sequences by type
+        for slave in slaveSequences:
+            match slave.types:
+                case "DO":
+                    DO_slaves.append(slave)
+                case "DI":
+                    DI_slaves.append(slave)
+                case "AO":
+                    AO_slaves.append(slave)
+                case "AI":
+                    AI_slaves.append(slave)
+                case _:
+                    raise ValueError(f"Invalid type {slave.types}")
+
+        return DO_slaves, AO_slaves, DI_slaves, AI_slaves
+
+    @staticmethod
+    def ordering_dict_key(dictionary: dict) -> dict:
+        """For a given dictionary, make the keys in consecutive ascending order.
+        For example,
+        Args:
+            dictionary (dict): dictionary to order
+
+        Returns:
+            dict: ordered dictionary
+        """
+        copied_dict: dict = deepcopy(dictionary)
+        sorted_keys = sorted(copied_dict.keys())
+        current_key = sorted_keys[0]
+
+        for key in sorted_keys[1:]:
+            if key != current_key + 1:
+                copied_dict[current_key + 1] = copied_dict.pop(key)
+            current_key += 1
+
+        return copied_dict
+
+    @staticmethod
+    def swap_dict_value(dictionary: dict, *keys: List[int]) -> dict:
+        """Swap the values of the original and moving keys in the dictionary.
+        *keys should be a tuple of two keys to swap.
+
+        For example, swap_dict_value( A, 1, 3) for A = {1:'first',2:'second',3:'third'} returns
+        --> A' = {1:'third',2:'second',3:'first'}
+
+        Args:
+            dictionary (dict): dictionary to swap
+
+        Raises:
+            ValueError: if the number of keys is not 2, raise ValueError
+            KeyError: if the original or moving key does not exist in the dictionary, raise KeyError
+
+        Returns:
+            dict: swapped dictionary
+        """
+        if len(keys) != 2:
+            raise ValueError("Invalid number of keys")
+
+        key_1, key_2 = keys
+
+        # Get the values corresponding to the original and moving indices
+        original_value = dictionary.get(key_1)
+        moving_value = dictionary.get(key_2)
+
+        # Check if both indices exist in the dictionary
+        if original_value is not None and moving_value is not None:
+            # Swap the values in the dictionary
+            dictionary[key_1] = moving_value
+            dictionary[key_2] = original_value
+        else:
+            raise KeyError("Invalid key")
+
+        return dictionary
+
+    @staticmethod
+    def create_int_values_C(array) -> ctypes.c_int32:
+        """creat integer C type array from python array
+
+        Args:
+            array: array to convert
+
+        Returns:
+            ctypes.c_int32: converted array
+        """
+        datatype = ctypes.c_int32 * len(array)
+        return datatype(*array)
+
+    class analog:
+        @staticmethod
+        def analog_to_digital(x, bit=16, range=(-10, 10)):
+            range_min, range_max = range
+
+            ans = (x + range_max) * 2**bit / (range_max - range_min)
+
+            return ans
+
+        @staticmethod
+        def digital_to_analog(x, bit=16, range=(-10, 10)):
+            range_min, range_max = range
+
+            ans = range_min + (x * (range_max - range_min) / 2**bit)
+
+            return ans
+
+    class digital:
+        class DO_FIFO:
+            @staticmethod
+            def bit_array_gen(length: int) -> bitarray:
+                """Generate initialized bit array with given length
+
+                Args:
+                    length (int): length of bit array
+
+                Returns:
+                    bitarray: 0 initialized bit array
+                """
+                bit_arr = bitarray(length)
+                bit_arr.setall(0)
+
+                return bit_arr
+
+            @staticmethod
+            def bit_array_edit(bitarray, channel: int, state: bool):
+                length = len(bitarray)
+                index = length - channel
+                bitarray[index] = state
+
+                return bitarray
+
+            @staticmethod
+            def pattern_gen(values, times):
+                """For given values and times arrays, Merge [value1, times1, value2, times2, value, times ...]
+
+                Args:
+                    values (arrayLike): bit array pattern [0000,0100,1010,...]
+                    times (arrayLike): relative or absolute time for values
+
+                Returns:
+                    Array: Pattern array for ADWin device [value1, times1, value2, times2, value, times ...]
+                """
+                k = np.array([0, 1])
+                n_values = np.kron(values, k[::-1])  # make [value,0,value,0,...]
+                n_times = np.kron(times, k)  # make [0,times,0,times,...]
+                pattern = (
+                    n_values + n_times
+                )  # Merge [value, times, value, times, value, times]
+
+                return pattern
+
+            @staticmethod
+            def string_to_list(string: str):
+                """Convert string to list
+                Ex) 'Physics' --> ['P','h','y','s','i','c','s']
+
+                Args:
+                    string (str): string to convert
+
+                Returns:
+                    list: list of characters
+                """
+                return [char for char in string]
+
+            @staticmethod
+            def add_string_lists(lists: list):
+                """Add characters in lists
+                Ex) ['1','1','0','0','1','1'] + ['1','0','1','0','1','0'] --> ['11','10','01','00','11','10']
+                Args:
+                    lists (list): list of characters
+
+                Returns:
+                    _type_: list of added characters
+                """
+                return reduce(np.char.add, lists).tolist()
+
+
+
 class patternGenerator:
     @staticmethod
     def __validate_condition(init_volt, end_volt, init_time, end_time, duration):
@@ -47,9 +332,12 @@ class patternGenerator:
         if init_time == end_time:
             raise ValueError("init_time should be different from end_time")
 
-    def gen_pattern(
-        self, pattern, init_time=0, end_time=None, duration=1e-6, update_period=100e-9
-    ):
+    def update_pattern(
+        self, pattern, init_time=0, end_time=None):
+
+        duration = self.duration
+        update_period = self.update_period
+
         init_volt, end_volt = pattern[0], pattern[-1]
         self.__validate_condition(init_volt, end_volt, init_time, end_time, duration)
         total_range = np.zeros(int(duration / update_period) + 1)
@@ -63,314 +351,345 @@ class patternGenerator:
 
         return total_range
 
+    def gen_ramp(self, init_volt, end_volt, init_time=0, end_time=None):
+        # make Ramp pattern
+        ramp_duration = end_time - init_time
+        update_period = self.update_period
+        update_bins = int(ramp_duration / update_period) + 1
+        update_steps = (end_volt - init_volt) / update_bins
+        raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
+
+        # update pattern
+        ramp_pattern = self.gen_pattern(raw_ramp_pattern,init_time,end_time)
+
+        self.pattern.update(ramp_pattern)
+
+        return self.pattern
+
+    def gen_sin(self, amp, freq, phase=0, offset=0):
+        # make sin pattern
+        update_period = float(self.update_period)
+        duration = float(self.duration)
+        t = np.arange(0, duration, update_period)
+        sin_pattern = amp * np.sin(2 * np.pi * freq * t + phase) + offset
+        # update pattern
+        self.pattern.update(sin_pattern)
+
+        return self.pattern
+
+    def gen_square(self, amp, freq, duty=0.5, phase=0, offset=0):
+        if self.types == "AO":
+            pass
+        else:
+            raise ValueError(
+                f"Generate square pattern does not support for {self.types}"
+            )
+        # make square pattern
+        update_period = float(self.update_period)
+        duration = float(self.duration)
+        t = np.arange(0, duration, update_period)
+        square_pattern = (
+            amp * signal.square(2 * np.pi * freq * t + phase, duty) + offset
+        )
+        # update pattern
+        self.pattern.update(square_pattern)
+
+        return self.pattern
+
+    def gen_sawtooth(self, amp, freq, phase=0, offset=0, width=1):
+        # make sawtooth pattern
+        update_period = float(self.update_period)
+        duration = float(self.duration)
+        t = np.arange(0, duration, update_period)
+        sawtooth_pattern = (
+            amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width)
+            + offset
+        )
+        # update pattern
+        self.pattern.update(sawtooth_pattern)
+
+        return self.pattern
+
+    def gen_gaussian(self, amp, freq, std, offset=0, sym=True):
+
+        # make gaussian pattern
+        update_period = float(self.update_period)
+        duration = float(self.duration)
+        t = np.arange(0, duration, update_period)
+        period = 1 / freq
+        std = std / update_period
+        num_samples = len(np.arange(0, period, update_period))
+
+        gaussian_pattern = (
+            amp * signal.windows.gaussian(num_samples, std, sym) + offset
+        )
+
+        i = len(gaussian_pattern)
+        while i < len(t):
+            gaussian_pattern = np.append(gaussian_pattern, gaussian_pattern)
+            i = len(gaussian_pattern)
+
+        gaussian_pattern = gaussian_pattern[: len(t)]
+        # update pattern
+        self.pattern.update(gaussian_pattern)
+
+        return self.pattern
+
+@dataclass
+class digitalPattern():
+
+    data: bit_string = bit_string(maxsize=511)
+
+    def __add__(self, other):
+        sp = miscs.digital.DO_FIFO.string_to_list(self.data)
+        op = miscs.digital.DO_FIFO.string_to_list(other.data)
+        np = miscs.digital.DO_FIFO.add_string_lists([sp, op])
+        return np
+    
+    def __radd__(self, other):
+
+        sp = miscs.digital.DO_FIFO.string_to_list(self.data)
+        return miscs.digital.DO_FIFO.add_string_lists([other, sp])
+    
+    def __len__(self):
+
+        return len(self.data)
+    
+    # def tolist(self) -> List[int]:
+    #     """Make pattern to integer list
+    #     Ex) '110011' --> [1,1,0,0,1,1]
+
+    #     Returns:
+    #         List[int]: bit pattern integer list
+    #     """
+    #     return bitarray(self.data).tolist()
+    
+@dataclass
+class analogPattern():
+
+    data: List[float] = None
+
+@dataclass
+class sequence():
+
+    name: str
+    duration: cond_real = cond_real(minvalue=1e-9, types=float)
+    
+
+@ dataclass()
+class slaveSequence(sequence):
+    
+    types: Literal["DO", "DI", "AO", "AI"] = OneOf("DO", "DI", "AO", "AI")
+    update_period: float = None
+    channel: cond_real = cond_real(minvalue=0, maxvalue=31, types=int)
+
+    def __post_init__(self):
+        if self.update_period is None:
+            raise ValueError("update period is not defined")
+
+        self.__settings = OQs.slaveSequenceSetting(
+            name=self.name,
+            duration=self.duration,
+            update_period=self.update_period,
+            types=self.types,
+            channel=self.channel,
+        )
+        
+        if self.types == "DO" or self.types == "DI":
+            self.pattern = digitalPattern('0')
+        elif self.types == "AO" or self.types == "AI":
+            self.pattern = analogPattern()
+
+    def __repr__(self) -> str:
+        return f"Adwin {self.types} Sequence | Name: {self.name}"
+
+    def __str__(self) -> str:
+        return f"{self.pattern}"
+
+    def __lt__(self, other):
+        # Since adwin accept channel pattern as bitarray,
+        # we need to sort channel in descending order
+        return int(self.channel) > int(other.channel)
+
+    def __len__(self):
+        return len(self.pattern)
+
+    def update(self, new_pattern):
+        self.pattern.update(new_pattern)
+
+    def append(self, new_pattern):
+        self.pattern.append(new_pattern)
+
+    def delete(self):
+        self.pattern = None
+
+    def plot(self, **kwargs):
+        figure = kwargs.get("figure", None)
+
+        if figure is None:
+            figure = plt.figure(figsize=(5, 3), dpi=300)
+
+        match self.type:
+            case "DO":
+                rect = sequence.configuration.plot.INIT_RECT
+                figure = sequence.util.plot_sequence(
+                    figure=figure, rect=rect, sequence=self
+                )
+            case "DI":
+                return NotImplementedError
+            case "AO":
+                return NotImplementedError
+            case "AI":
+                return NotImplementedError
+
+        return figure
+
+class masterSequence(sequence):
+    def __init__(self, name: str = None, duration: float = 1e-6) -> None:
+            # Check if name is given
+            if name is None:
+                raise ValueError("name is not defined")
+            # Check if name is string
+            else:
+                if not isinstance(name, str):
+                    raise TypeError("name should be string")
+
+            # Check if duration is given
+            if duration is None:
+                raise ValueError("duration is not defined")
+            else:
+                # Check if duration is positive
+                if not isinstance(duration, float | int):
+                    raise TypeError("duration should be float or integer")
+            # We will use duration divided by unit time (1ns).
+            duration = duration
+            self.__raw_sequences: Dict(sequence.slaveSequence) = dict()
+            self.__final_sequences: dict = None
+            self.__settings = OQs.masterSequenceSetting(name, duration)
+            self.processed = False
+
+    def __len__(self) -> int:
+        return len(self.__raw_sequences)
+
+    def __repr__(self) -> str:
+        return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.__raw_sequences.values()]}"
+
+    def __str__(self) -> str:
+        return f"{self.__raw_sequences}"
+
+    def __getitem__(self, key):
+        return self.__raw_sequences[key]
+
+    def append(self, slaveSequence):
+        if isinstance(slaveSequence, sequence.slaveSequence):
+            self.__raw_sequences.append(slaveSequence)
+        else:
+            if not isinstance(slaveSequence, list | tuple):
+                raise TypeError(
+                    "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
+                )
+            else:
+                if all(
+                    isinstance(x, sequence.slaveSequence) for x in slaveSequence
+                ):
+                    self.__raw_sequences += slaveSequence
+                else:
+                    raise TypeError(
+                        "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
+                    )
+        self.processed = False
+
+    def create_slave(
+        self,
+        types: Literal["DO", "DI", "AO", "AI"] = None,
+        name: str = None,
+        ch: int = None,
+    ):
+        """Create new slave sequence to master sequence
+
+        Args:
+            type (str): can be "DO", "DI", "AO", "AI"
+            ch (int): channel number. If type is "DO" or "DI", ch is digital channel number. If type is "AO" or "AI", ch is analog channel number.
+            name (str, optional): Name of sequence. If name is None, name is set to "Sequence #(number)". Defaults to None.
+
+        Raises:
+            ValueError: if type is not "DO", "DI", "AO", "AI", raise ValueError
+        """
+        # Check if name is given
+        if name is None:
+            # If name is not given, set name to "Sequence #(number)"
+            name = f"Sequence # {len(self.sequences)+1}"
+        else:
+            name = name
+
+        match types:
+            case "DO":
+                update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD
+            case "DI":
+                update_period = NotImplementedError
+            case "AO":
+                update_period = self.settings.AO.AO_UPDATE_PERIOD
+            case "AI":
+                update_period = self.settings.AI.AI_UPDATE_PERIOD
+            case _:
+                raise ValueError(f"Invalid type {types}")
+
+        # Create sequence object by type
+        sequence_obj = sequence.slaveSequence(
+            name=name,
+            duration=self.duration,
+            update_period=update_period,
+            types=types,
+            channel=ch,
+        )
+        # Append sequence object to raw sequence
+        self.__raw_sequences[f"{name}"] = sequence_obj
+        self.processed = False
+
+    def pre_process(self):
+        master_seq_list = list(self.__raw_sequences.values())
+        pre_processor = _masterSequenceProcessor(master_seq_list, self.settings)
+        pre_processor.fianlize()
+
+        self.__settings = pre_processor.return_settings()
+        self.__final_sequences = pre_processor.result
+
+        self.processed = True
+
+    def plot(self):
+        # Plotting slave sequences
+        bob = painter(self.__raw_sequences.values())
+        bob.plot()
+
+    def clear(self) -> None:
+        self.__raw_sequences.clear()
+        self.__final_sequences = None
+        self.processed = False
+
+    @property
+    def name(self):
+        return self.settings.GENERAL.name
+
+    @property
+    def duration(self):
+        return self.settings.GENERAL.duration
+
+    @property
+    def settings(self):
+        return self.__settings
+
+    def _return_final_sequences(self):
+        return self.__final_sequences
+    pass
+
 
 class sequence:
     """
     Sequence classes for adoqt
     """
-
-    class adwinSequence(ABC):
-        @abstractmethod
-        def append(self):
-            pass
-
-    class pattern:
-        types: OneOf("DO", "DI", "AO", "AI")
-
-        def __init__(self, types: Literal["DO", "DI", "AO", "AI"], data=None) -> None:
-            self.types = types
-            self.update(data)
-
-        def update(self, data):
-            if data is None:
-                return
-            match self.types:
-                case "DO":
-                    up_pattern = sequence.pattern.DO(data=data)
-                case "DI":
-                    up_pattern = sequence.pattern.DI(data=data)
-                case "AO":
-                    up_pattern = sequence.pattern.AO(data=data)
-                case "AI":
-                    up_pattern = sequence.pattern.AI(data=data)
-                case _:
-                    raise ValueError(f"Invalid type {self.types}")
-
-            self.__pattern = up_pattern
-
-        def delete(self):
-            self.__pattern = None
-
-        @property
-        def _data(self):
-            return self.__pattern.data
-
-        def __repr__(self) -> str:
-            return f"Pattern | Type: {self.types}, Data: {self.__pattern.data}"
-
-        def __str__(self) -> str:
-            return f"{self.__pattern.data}"
-
-        def __len__(self):
-            return len(self.__pattern.data)
-
-        @dataclass()
-        class DO:
-            data: bit_string = bit_string(maxsize=511)
-            state: bit_string = bit_string(minsize=1, maxsize=1)
-
-            def __add__(self, other):
-                sp = miscs.digital.DO_FIFO.string_to_list(self.data)
-                op = miscs.digital.DO_FIFO.string_to_list(other.data)
-                np = miscs.digital.DO_FIFO.add_string_lists([sp, op])
-                return np
-
-            def __radd__(self, other):
-                sp = miscs.digital.DO_FIFO.string_to_list(self.data)
-                return miscs.digital.DO_FIFO.add_string_lists([other, sp])
-
-            def __len__(self):
-                return len(self.data)
-
-            def tolist(self) -> List[int]:
-                """Make pattern to integer list
-                Ex) '110011' --> [1,1,0,0,1,1]
-
-                Returns:o
-                    List[int]: bit pattern integer list
-                """
-                return bitarray(self.data).tolist()
-
-        @dataclass
-        class DI:
-            data: List[int] = field(default_factory=list)
-
-        @dataclass(init=False)
-        class AO:
-            data: List[int] = field(default_factory=list)
-
-            def __init__(self, data):
-                if data is None:
-                    self.data = [None]
-                else:
-                    self.data = data
-
-        @dataclass
-        class AI:
-            data: List[int] = field(default_factory=list)
-
-    class slaveSequence(adwinSequence, patternGenerator):
-        def __init__(self, **kwargs) -> None:
-            name = kwargs.get("name", None)
-            duration = kwargs.get("duration", None)
-            update_period = kwargs.get("update_period", None)
-            types = kwargs.get("types", None)
-            channel = kwargs.get("channel", None)
-            pattern = kwargs.get("pattern", None)
-
-            if update_period is None:
-                raise ValueError("update period is not defined")
-
-            self.__settings = OQs.slaveSequenceSetting(
-                name=name,
-                duration=duration,
-                update_period=update_period,
-                types=types,
-                channel=channel,
-            )
-
-            if pattern is None:
-                self.pattern = sequence.pattern(types)
-
-            else:
-                if not isinstance(pattern, sequence.pattern):
-                    raise TypeError("pattern is not sequence.pattern")
-                else:
-                    self.pattern = pattern
-
-        def __repr__(self) -> str:
-            return f"Adwin {self.types} Sequence | Name: {self.name}"
-
-        def __str__(self) -> str:
-            return f"{self.pattern.data}"
-
-        def __lt__(self, other):
-            # Since adwin accept channel pattern as bitarray,
-            # we need to sort channel in descending order
-            return int(self.channel) > int(other.channel)
-
-        def __len__(self):
-            return len(self.pattern)
-
-        def update(self, new_pattern):
-            self.pattern.update(new_pattern)
-
-        def append(self, new_pattern):
-            self.pattern.append(new_pattern)
-
-        def delete(self):
-            self.pattern = None
-
-        def plot(self, **kwargs):
-            figure = kwargs.get("figure", None)
-
-            if figure is None:
-                figure = plt.figure(figsize=(5, 3), dpi=300)
-
-            match self.type:
-                case "DO":
-                    rect = sequence.configuration.plot.INIT_RECT
-                    figure = sequence.util.plot_sequence(
-                        figure=figure, rect=rect, sequence=self
-                    )
-                case "DI":
-                    return NotImplementedError
-                case "AO":
-                    return NotImplementedError
-                case "AI":
-                    return NotImplementedError
-
-            return figure
-
-        def add_note(self, note: str):
-            self.note = note
-
-        def gen_ramp(self, init_volt, end_volt, init_time=0, end_time=None):
-            if self.types == "AO":
-                pass
-            else:
-                raise ValueError(
-                    f"Generate ramp pattern does not support for {self.types}"
-                )
-            # make Ramp pattern
-            ramp_duration = end_time - init_time
-            update_period = float(self.update_period)
-            update_bins = int(ramp_duration / update_period) + 1
-            update_steps = (end_volt - init_volt) / update_bins
-            raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
-
-            # update pattern
-            ramp_pattern = self.gen_pattern(
-                raw_ramp_pattern,
-                init_time,
-                end_time,
-                float(self.duration),
-                update_period,
-            )
-
-            self.pattern.update(ramp_pattern)
-
-            return self.pattern
-
-        def gen_sin(self, amp, freq, phase=0, offset=0):
-            if self.types == "AO":
-                pass
-            else:
-                raise ValueError(
-                    f"Generate sin pattern does not support for {self.types}"
-                )
-            # make sin pattern
-            update_period = float(self.update_period)
-            duration = float(self.duration)
-            t = np.arange(0, duration, update_period)
-            sin_pattern = amp * np.sin(2 * np.pi * freq * t + phase) + offset
-            # update pattern
-            self.pattern.update(sin_pattern)
-
-            return self.pattern
-
-        def gen_square(self, amp, freq, duty=0.5, phase=0, offset=0):
-            if self.types == "AO":
-                pass
-            else:
-                raise ValueError(
-                    f"Generate square pattern does not support for {self.types}"
-                )
-            # make square pattern
-            update_period = float(self.update_period)
-            duration = float(self.duration)
-            t = np.arange(0, duration, update_period)
-            square_pattern = (
-                amp * signal.square(2 * np.pi * freq * t + phase, duty) + offset
-            )
-            # update pattern
-            self.pattern.update(square_pattern)
-
-            return self.pattern
-
-        def gen_sawtooth(self, amp, freq, phase=0, offset=0, width=1):
-            if self.types == "AO":
-                pass
-            else:
-                raise ValueError(
-                    f"Generate sawtooth pattern does not support for {self.types}"
-                )
-            # make sawtooth pattern
-            update_period = float(self.update_period)
-            duration = float(self.duration)
-            t = np.arange(0, duration, update_period)
-            sawtooth_pattern = (
-                amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width)
-                + offset
-            )
-            # update pattern
-            self.pattern.update(sawtooth_pattern)
-
-            return self.pattern
-
-        def gen_gaussian(self, amp, freq, std, offset=0, sym=True):
-            if self.types == "AO":
-                pass
-            else:
-                raise ValueError(
-                    f"Generate gaussian pattern does not support for {self.types}"
-                )
-            # make gaussian pattern
-            update_period = float(self.update_period)
-            duration = float(self.duration)
-            t = np.arange(0, duration, update_period)
-            period = 1 / freq
-            std = std / update_period
-            num_samples = len(np.arange(0, period, update_period))
-
-            gaussian_pattern = (
-                amp * signal.windows.gaussian(num_samples, std, sym) + offset
-            )
-
-            i = len(gaussian_pattern)
-            while i < len(t):
-                gaussian_pattern = np.append(gaussian_pattern, gaussian_pattern)
-                i = len(gaussian_pattern)
-
-            gaussian_pattern = gaussian_pattern[: len(t)]
-            # update pattern
-            self.pattern.update(gaussian_pattern)
-
-            return self.pattern
-
-        @property
-        def name(self):
-            return f"{self.__settings.GENERAL.name}"
-
-        @property
-        def duration(self):
-            return f"{self.__settings.GENERAL.duration}"
-
-        @property
-        def update_period(self):
-            return f"{self.__settings.GENERAL.update_period}"
-
-        @property
-        def types(self):
-            return f"{self.__settings.GENERAL.types}"
-
-        @property
-        def channel(self):
-            return f"{self.__settings.GENERAL.channel}"
-
     # Master sequence
     @dataclass(repr=False)
-    class masterSequence(adwinSequence):
+    class masterSequence(
         def __init__(self, name: str = None, duration: float = 1e-6) -> None:
             # Check if name is given
             if name is None:
@@ -508,7 +827,7 @@ class sequence:
             return self.__final_sequences
 
     @dataclass(repr=False)
-    class project(adwinSequence):
+    class project(
         """This is the second layer of the sequence, a collection class of multiple Master Sequences.
 
         Raises:
@@ -1001,286 +1320,3 @@ class manager:
     def set_process_delay(self, delay: int):
         self.__device.Set_Processdelay(1, delay)
 
-
-class painter:
-    def __init__(self, sequences: sequence.slaveSequence) -> None:
-        self.sequences = sequences
-        self.configuration = painter.plot_configuration()
-        self.figure = None
-
-    def plot(self):
-        self.figure = plt.figure(figsize=(5, 3), dpi=500)
-        rect = self.configuration.INIT_RECT
-
-        for sequence in self.sequences:
-            match sequence.types:
-                case "DO":
-                    self.plot_DO(self.figure, sequence, rect)
-                case "DI":
-                    self.plot_DI(self.figure, sequence, rect)
-                case "AO":
-                    self.plot_AO(self.figure, sequence, rect)
-                case "AI":
-                    self.plot_AI(self.figure, sequence, rect)
-                case _:
-                    raise ValueError(f"Invalid type {sequence.types}")
-
-            l, b, w, h = rect
-            rect = [l, b - (h + 0.1), w, h]
-
-        self.figure.axes[0].set_xlabel(
-            "Time (s)", fontsize=self.configuration.FONT_SIZE
-        )
-
-    def plot_DO(self, figure, sequence, rect, color: str = "k"):
-        if rect is None:
-            rect = self.configuration.INIT_RECT
-        # Generate time array for x axis
-        time = np.linspace(
-            0, float(sequence.duration), len(sequence.pattern), endpoint=False
-        )
-        # add axes to figure
-        ax = figure.add_axes(rect)
-        # plot step function
-        ax.step(
-            time,
-            sequence.pattern._data.tolist(),
-            where="post",
-            color=color,
-            linewidth=self.configuration.LINEWIDTH,
-        )
-        # y axis label = sequence name
-        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=self.configuration.FONT_SIZE)
-        plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
-
-        self.figure = figure
-
-    def plot_DI(self, figure, sequence, rect, color: str = "k"):
-        pass
-
-    def plot_AO(self, figure, sequence, rect, color: str = "k"):
-        if rect is None:
-            rect = self.configuration.INIT_RECT
-        # Generate time array for x axis
-        time = np.linspace(
-            0, float(sequence.duration), len(sequence.pattern._data), endpoint=False
-        )
-        # add axes to figure
-        ax = figure.add_axes(rect)
-        # plot
-        ax.plot(
-            time,
-            sequence.pattern._data,
-            color=color,
-            linewidth=self.configuration.LINEWIDTH,
-        )
-        # y axis label = sequence name
-        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=self.configuration.FONT_SIZE)
-        plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
-
-        self.figure = figure
-
-    def plot_AI(self, figure, sequence, rect, color: str = "k"):
-        pass
-
-    @dataclass(frozen=True)
-    class plot_configuration:
-        LINEWIDTH = 2
-        INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
-        FONT_SIZE = 10  # font size for axis label
-
-
-class miscs:
-    @staticmethod
-    def slaves_seq_finder(slaveSequences: List[sequence.slaveSequence], **kwagrs):
-        """Find master sequences by type
-
-        Args:
-            masterSequences (Dict[int,sequence.masterSequence]): _description_
-
-        Raises:
-            TypeError: if masterSequences is not Dict[int,sequence.masterSequence], raise TypeError
-
-        Returns:
-            list: list of sorted master sequences
-        """
-        DO_slaves = list()
-        AO_slaves = list()
-        DI_slaves = list()
-        AI_slaves = list()
-
-        # Find slave sequences by type
-        for slave in slaveSequences:
-            match slave.types:
-                case "DO":
-                    DO_slaves.append(slave)
-                case "DI":
-                    DI_slaves.append(slave)
-                case "AO":
-                    AO_slaves.append(slave)
-                case "AI":
-                    AI_slaves.append(slave)
-                case _:
-                    raise ValueError(f"Invalid type {slave.types}")
-
-        return DO_slaves, AO_slaves, DI_slaves, AI_slaves
-
-    @staticmethod
-    def ordering_dict_key(dictionary: dict) -> dict:
-        """For a given dictionary, make the keys in consecutive ascending order.
-        For example,
-        Args:
-            dictionary (dict): dictionary to order
-
-        Returns:
-            dict: ordered dictionary
-        """
-        copied_dict: dict = deepcopy(dictionary)
-        sorted_keys = sorted(copied_dict.keys())
-        current_key = sorted_keys[0]
-
-        for key in sorted_keys[1:]:
-            if key != current_key + 1:
-                copied_dict[current_key + 1] = copied_dict.pop(key)
-            current_key += 1
-
-        return copied_dict
-
-    @staticmethod
-    def swap_dict_value(dictionary: dict, *keys: List[int]) -> dict:
-        """Swap the values of the original and moving keys in the dictionary.
-        *keys should be a tuple of two keys to swap.
-
-        For example, swap_dict_value( A, 1, 3) for A = {1:'first',2:'second',3:'third'} returns
-        --> A' = {1:'third',2:'second',3:'first'}
-
-        Args:
-            dictionary (dict): dictionary to swap
-
-        Raises:
-            ValueError: if the number of keys is not 2, raise ValueError
-            KeyError: if the original or moving key does not exist in the dictionary, raise KeyError
-
-        Returns:
-            dict: swapped dictionary
-        """
-        if len(keys) != 2:
-            raise ValueError("Invalid number of keys")
-
-        key_1, key_2 = keys
-
-        # Get the values corresponding to the original and moving indices
-        original_value = dictionary.get(key_1)
-        moving_value = dictionary.get(key_2)
-
-        # Check if both indices exist in the dictionary
-        if original_value is not None and moving_value is not None:
-            # Swap the values in the dictionary
-            dictionary[key_1] = moving_value
-            dictionary[key_2] = original_value
-        else:
-            raise KeyError("Invalid key")
-
-        return dictionary
-
-    @staticmethod
-    def create_int_values_C(array) -> ctypes.c_int32:
-        """creat integer C type array from python array
-
-        Args:
-            array: array to convert
-
-        Returns:
-            ctypes.c_int32: converted array
-        """
-        datatype = ctypes.c_int32 * len(array)
-        return datatype(*array)
-
-    class analog:
-        @staticmethod
-        def analog_to_digital(x, bit=16, range=(-10, 10)):
-            range_min, range_max = range
-
-            ans = (x + range_max) * 2**bit / (range_max - range_min)
-
-            return ans
-
-        @staticmethod
-        def digital_to_analog(x, bit=16, range=(-10, 10)):
-            range_min, range_max = range
-
-            ans = range_min + (x * (range_max - range_min) / 2**bit)
-
-            return ans
-
-    class digital:
-        class DO_FIFO:
-            @staticmethod
-            def bit_array_gen(length: int) -> bitarray:
-                """Generate initialized bit array with given length
-
-                Args:
-                    length (int): length of bit array
-
-                Returns:
-                    bitarray: 0 initialized bit array
-                """
-                bit_arr = bitarray(length)
-                bit_arr.setall(0)
-
-                return bit_arr
-
-            @staticmethod
-            def bit_array_edit(bitarray, channel: int, state: bool):
-                length = len(bitarray)
-                index = length - channel
-                bitarray[index] = state
-
-                return bitarray
-
-            @staticmethod
-            def pattern_gen(values, times):
-                """For given values and times arrays, Merge [value1, times1, value2, times2, value, times ...]
-
-                Args:
-                    values (arrayLike): bit array pattern [0000,0100,1010,...]
-                    times (arrayLike): relative or absolute time for values
-
-                Returns:
-                    Array: Pattern array for ADWin device [value1, times1, value2, times2, value, times ...]
-                """
-                k = np.array([0, 1])
-                n_values = np.kron(values, k[::-1])  # make [value,0,value,0,...]
-                n_times = np.kron(times, k)  # make [0,times,0,times,...]
-                pattern = (
-                    n_values + n_times
-                )  # Merge [value, times, value, times, value, times]
-
-                return pattern
-
-            @staticmethod
-            def string_to_list(string: str):
-                """Convert string to list
-                Ex) 'Physics' --> ['P','h','y','s','i','c','s']
-
-                Args:
-                    string (str): string to convert
-
-                Returns:
-                    list: list of characters
-                """
-                return [char for char in string]
-
-            @staticmethod
-            def add_string_lists(lists: list):
-                """Add characters in lists
-                Ex) ['1','1','0','0','1','1'] + ['1','0','1','0','1','0'] --> ['11','10','01','00','11','10']
-                Args:
-                    lists (list): list of characters
-
-                Returns:
-                    _type_: list of added characters
-                """
-                return reduce(np.char.add, lists).tolist()
