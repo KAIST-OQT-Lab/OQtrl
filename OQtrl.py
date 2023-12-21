@@ -25,6 +25,7 @@ PROCESSORTYPE = "12"
 
 
 class patternGenerator:
+    @staticmethod
     def __validate_condition(init_volt, end_volt, init_time, end_time, duration):
         # Check if init_volt and end_volt is in range
         if not (init_volt >= -10 and init_volt <= 10):
@@ -51,7 +52,7 @@ class patternGenerator:
     ):
         init_volt, end_volt = pattern[0], pattern[-1]
         self.__validate_condition(init_volt, end_volt, init_time, end_time, duration)
-        total_range = np.zeors(int(duration / update_period))
+        total_range = np.zeros(int(duration / update_period) + 1)
         # If init_time is not equal to 0, find index of init_time and insert given pattern into total range
         if init_time != 0:
             init_idx = int(init_time / update_period)
@@ -142,7 +143,7 @@ class sequence:
 
         @dataclass
         class DI:
-            data = List[int] = field(default_factory=list)
+            data: List[int] = field(default_factory=list)
 
         @dataclass(init=False)
         class AO:
@@ -156,7 +157,7 @@ class sequence:
 
         @dataclass
         class AI:
-            data = List[int] = field(default_factory=list)
+            data: List[int] = field(default_factory=list)
 
     class slaveSequence(adwinSequence, patternGenerator):
         def __init__(self, **kwargs) -> None:
@@ -243,13 +244,18 @@ class sequence:
                 )
             # make Ramp pattern
             ramp_duration = end_time - init_time
-            update_bins = int(ramp_duration / self.update_period)
+            update_period = float(self.update_period)
+            update_bins = int(ramp_duration / update_period) + 1
             update_steps = (end_volt - init_volt) / update_bins
             raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
 
             # update pattern
             ramp_pattern = self.gen_pattern(
-                raw_ramp_pattern, init_time, end_time, self.duration, self.update_period
+                raw_ramp_pattern,
+                init_time,
+                end_time,
+                float(self.duration),
+                update_period,
             )
 
             self.pattern.update(ramp_pattern)
@@ -264,14 +270,16 @@ class sequence:
                     f"Generate sin pattern does not support for {self.types}"
                 )
             # make sin pattern
-            t = np.arange(0, self.duration, self.update_period)
+            update_period = float(self.update_period)
+            duration = float(self.duration)
+            t = np.arange(0, duration, update_period)
             sin_pattern = amp * np.sin(2 * np.pi * freq * t + phase) + offset
             # update pattern
             self.pattern.update(sin_pattern)
 
             return self.pattern
 
-        def gen_sqaure(self, amp, freq, duty=0, phase=0, offset=0):
+        def gen_square(self, amp, freq, duty=0.5, phase=0, offset=0):
             if self.types == "AO":
                 pass
             else:
@@ -279,9 +287,11 @@ class sequence:
                     f"Generate square pattern does not support for {self.types}"
                 )
             # make square pattern
-            t = np.arange(0, self.duration, self.update_period)
+            update_period = float(self.update_period)
+            duration = float(self.duration)
+            t = np.arange(0, duration, update_period)
             square_pattern = (
-                amp * signal.square(2 * np.pi * freq * t + phase, duty=duty) + offset
+                amp * signal.square(2 * np.pi * freq * t + phase, duty) + offset
             )
             # update pattern
             self.pattern.update(square_pattern)
@@ -296,7 +306,9 @@ class sequence:
                     f"Generate sawtooth pattern does not support for {self.types}"
                 )
             # make sawtooth pattern
-            t = np.arange(0, self.duration, self.update_period)
+            update_period = float(self.update_period)
+            duration = float(self.duration)
+            t = np.arange(0, duration, update_period)
             sawtooth_pattern = (
                 amp * signal.sawtooth(2 * np.pi * freq * t + phase, width=width)
                 + offset
@@ -306,7 +318,7 @@ class sequence:
 
             return self.pattern
 
-        def gen_gaussian(self, amp, freq, std, offset, sym=True):
+        def gen_gaussian(self, amp, freq, std, offset=0, sym=True):
             if self.types == "AO":
                 pass
             else:
@@ -314,10 +326,12 @@ class sequence:
                     f"Generate gaussian pattern does not support for {self.types}"
                 )
             # make gaussian pattern
-            t = np.arange(0, self.duration, self.update_period)
+            update_period = float(self.update_period)
+            duration = float(self.duration)
+            t = np.arange(0, duration, update_period)
             period = 1 / freq
-            std = std / self.update_period
-            num_samples = len(np.arange(0, period, self.update_period))
+            std = std / update_period
+            num_samples = len(np.arange(0, period, update_period))
 
             gaussian_pattern = (
                 amp * signal.windows.gaussian(num_samples, std, sym) + offset
@@ -657,14 +671,18 @@ class _masterSequenceProcessor:
         return None
 
     def merge_slaves(self):
-        self.__merge_slaves_DO()
-        self.__merge_slaves_AO()
-        self.__merge_slaves_DI()
-        self.__merge_slaves_AI()
+        if len(self.DO_slaves) != 0:
+            self.__merge_slaves_DO()
+        if len(self.AO_slaves) != 0:
+            self.__merge_slaves_AO()
+        if len(self.DI_slaves) != 0:
+            self.__merge_slaves_DI()
+        if len(self.AI_slaves) != 0:
+            self.__merge_slaves_AI()
 
     def __merge_slaves_DO(self):
-        update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD / DO_UNIT_TIME
-        duration = self.settings.GENERAL.duration / DO_UNIT_TIME
+        update_period = float(self.settings.DO.DO_FIFO_UPDATE_PERIOD) / DO_UNIT_TIME
+        duration = float(self.settings.GENERAL.duration) / DO_UNIT_TIME
         # Find empty channels
         tot_channels = set(np.arange(0, max(self.DO_chs) + 1))
         empty_channels = list(tot_channels - self.DO_chs)
@@ -710,7 +728,78 @@ class _masterSequenceProcessor:
         self.settings.DO.DO_FIFO_CH_PATTERN = ch_pattern.to01()
 
     def __merge_slaves_AO(self):
-        return None
+        update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
+        duration = float(self.settings.GENERAL.duration)
+        # Find empty channels
+        tot_channels = set(np.arange(1, 9))
+        empty_channels = list(tot_channels - self.AO_chs)
+        dump_pattern = sequence.pattern(
+            "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
+        )
+        dump_slaves = [
+            sequence.slaveSequence(
+                types="AO",
+                duration=duration,
+                update_period=update_period,
+                channel=ch,
+                pattern=dump_pattern,
+            )
+            for ch in empty_channels
+        ]
+        self.AO_slaves += dump_slaves
+        # Sort by channels [8,7,6,...,2,1]
+        self.AO_slaves.sort()
+        # Pattern digitize to 16bit
+        AOs = [x.pattern._data for x in self.AO_slaves]
+        digitized_AOs = [
+            np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
+        ]
+        bitpattern_AOs = []
+        for x in digitized_AOs:
+            bitpattern = [f"{val:016b}" for val in x]
+            bitpattern_AOs.append(bitpattern)
+        print(len(bitpattern_AOs))
+        # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
+        onetwo = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-1], bitpattern_AOs[-2]]
+        )
+        threefour = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-3], bitpattern_AOs[-4]]
+        )
+        fivesix = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-5], bitpattern_AOs[-6]]
+        )
+        seveneight = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-7], bitpattern_AOs[-8]]
+        )
+
+        # converted
+        converted = []
+        for i in range(len(onetwo)):
+            if i % 4 == 0:
+                try:
+                    converted.append(int(onetwo.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 1:
+                try:
+                    converted.append(int(threefour.pop(0, base=2)))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 2:
+                try:
+                    converted.append(int(fivesix.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 3:
+                try:
+                    converted.append(int(seveneight.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+        print(converted)
+        result = miscs.create_int_values_C(converted)
+
+        self.processed_result["AO"] = result
 
     def __merge_slaves_DI(self):
         return None
@@ -971,7 +1060,27 @@ class painter:
         pass
 
     def plot_AO(self, figure, sequence, rect, color: str = "k"):
-        pass
+        if rect is None:
+            rect = self.configuration.INIT_RECT
+        # Generate time array for x axis
+        time = np.linspace(
+            0, float(sequence.duration), len(sequence.pattern._data), endpoint=False
+        )
+        # add axes to figure
+        ax = figure.add_axes(rect)
+        # plot
+        ax.plot(
+            time,
+            sequence.pattern._data,
+            color=color,
+            linewidth=self.configuration.LINEWIDTH,
+        )
+        # y axis label = sequence name
+        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
+        ax.set_ylabel(name, fontsize=self.configuration.FONT_SIZE)
+        plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
+
+        self.figure = figure
 
     def plot_AI(self, figure, sequence, rect, color: str = "k"):
         pass
