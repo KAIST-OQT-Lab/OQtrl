@@ -2,9 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ctypes
 import OQtrl_settings as settings
+import bitarray
 from dataclasses import dataclass
 from functools import reduce
+from operator import add
 from scipy import signal
+from OQtrl_settings import DO_UNIT_TIME
 
 
 class painter:
@@ -224,7 +227,7 @@ class seqTool:
             Returns:
                 list: list of sorted master sequences
             """
-            slaveSequences = self.__slaveSequences
+            slaveSequences = list(self.__slaveSequences.values())
             DO_slaves = list()
             AO_slaves = list()
             DI_slaves = list()
@@ -244,10 +247,31 @@ class seqTool:
                     case _:
                         raise ValueError(f"Invalid type {slave.types}")
 
-            return DO_slaves, AO_slaves, DI_slaves, AI_slaves
+            do_chs = set([int(x.channel) for x in DO_slaves])
+            ao_chs = set([int(x.channel) for x in AO_slaves])
+            di_chs = set([int(x.channel) for x in DI_slaves])
+            ai_chs = set([int(x.channel) for x in AI_slaves])
+
+            self._do = DO_slaves
+            self._ao = AO_slaves
+            self._di = DI_slaves
+            self._ai = AI_slaves
+
+            self._do_chs = do_chs
+            self._ao_chs = ao_chs
+            self._di_chs = di_chs
+            self._ai_chs = ai_chs
+
+        def gen_do_ch_pattern(self, do_chs):
+            ch_pattern = bitarray(32)
+            ch_pattern.setall(False)
+            for ch in do_chs:
+                ch_pattern[-ch - 1] = True
+
+            self.settings.DO.DO_FIFO_CH_PATTERN = ch_pattern.to01()
 
         @staticmethod
-        def finalize_dio_pattern(values, times):
+        def digout_fifo_pattern(values, times):
             k = np.array([0, 1])
             n_values = np.kron(values, k[::-1])  # make [value,0,value,0,...]
             n_times = np.kron(times, k)  # make [0,times,0,times,...]
@@ -256,6 +280,26 @@ class seqTool:
             )  # Merge [value, times, value, times, value, times]
 
             return pattern
+
+        def merge_do(self):
+            duration = self.duration / DO_UNIT_TIME
+            update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
+            tot_channels = set(np.arange(0, max(self._do_chs) + 1))
+            empty_channels = list(tot_channels - self._do_chs)
+            for ch in empty_channels:
+                self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
+                self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
+            self._do.sort()
+
+            do_patterns = [x.pattern for x in self._do]
+            do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
+            time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
+            final_do_pattern = seqTool.master.digout_fifo_pattern(
+                do_patterns, time_patterns
+            )
+
+            self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
+            self.__processedSlaves["DO"] = final_do_pattern
 
 
 class projTool:
