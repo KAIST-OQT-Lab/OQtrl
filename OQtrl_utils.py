@@ -34,7 +34,7 @@ class painter:
             "Time (s)", fontsize=settings.plotParams.FONT_SIZE
         )
 
-    def __plot_DO(self, figure, sequence, rect, color: str = "k"):
+    def __plot_digital(self, figure, sequence, rect, color: str = "k"):
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
@@ -58,10 +58,7 @@ class painter:
 
         self.figure = figure
 
-    def __plot_DI(self, figure, sequence, rect, color: str = "k"):
-        pass
-
-    def __plot_AO(self, figure, sequence, rect, color: str = "k"):
+    def __plot_analog(self, figure, sequence, rect, color: str = "k"):
         if rect is None:
             rect = self.configuration.INIT_RECT
         # Generate time array for x axis
@@ -83,9 +80,6 @@ class painter:
         plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
 
         self.figure = figure
-
-    def __plot_AI(self, figure, sequence, rect, color: str = "k"):
-        pass
 
 
 class seqTool:
