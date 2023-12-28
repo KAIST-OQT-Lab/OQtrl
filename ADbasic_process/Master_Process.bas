@@ -34,7 +34,7 @@ Init:
   P2_Set_LED(AO_MODULE, 1)
   'Digital Channel Setting
   P2_DigProg(DIO_MODULE, Par_1) 'Set Digital Input / Output Ch
-  P2_Dig_FIFO_Mode(DIO_MODULE, 3)'Set DIO FIFO as Relative output
+  P2_Dig_FIFO_Mode(DIO_MODULE, 5)'Set DIO FIFO as Relative output
   P2_Digout_FIFO_Clear(DIO_MODULE) 'Clear FIFO 
   P2_Digout_FIFO_Enable(DIO_MODULE, Par_31) 'Make Selected Output CH as FIFO
   P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)'Write FIFO Pattern
@@ -53,10 +53,15 @@ Event:
   new_time = Read_Timer()
   time_diff = Calc_TicksToNs(new_time - old_time)
   
-  'Digital Output 
-  If (P2_Digout_FIFO_Empty(DIO_MODULE) > Par_32 - 1) Then
+  If (P2_Digout_FIFO_Read_Timer(DIO_MODULE) > Par_2-1) Then
+    P2_Digout_FIFO_Clear(DIO_MODULE)
     P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)
+    P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1))
   EndIf
+  'Digital Output 
+  '  If (P2_Digout_FIFO_Empty(DIO_MODULE) > Par_32 - 1) Then
+  '  P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)
+  'EndIf
   
   'Analog Output  
   If (time_diff > Par_50) Then
