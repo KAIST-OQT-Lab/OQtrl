@@ -115,13 +115,14 @@ class slaveSequence(sequence, util.painter):
 
     def delete(self):
         self.pattern = None
-    
+
     def plot(self):
         if self.types == "DO" or self.types == "DI":
             self.__plot_digital()
-        elif:
+        elif self.types == "AO" or self.types == "AI":
             self.__plot_analog()
-            
+        else:
+            raise ValueError(f"Invalid type {self.types}")
 
 
 @dataclass
