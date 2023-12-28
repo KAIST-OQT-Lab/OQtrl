@@ -14,7 +14,7 @@
 #Include ADwinPro_All.Inc
 #Define DIO_MODULE 1 
 
-Dim Data_1[4] As Long
+Dim Data_1[20] As Long
 Init:
   Processdelay = 100
   'Turn on LED of the Modules
@@ -42,10 +42,11 @@ Event:
   'P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1))
   'EndIf
   
-  If (P2_Digout_FIFO_Read_Timer(DIO_MODULE) > Par_2-1) Then
+  If (P2_Digout_FIFO_Read_Timer(DIO_MODULE) > Par_2 - 1) Then
     P2_Digout_FIFO_Clear(DIO_MODULE)
-  P2_Digout_FIFO_Write(DIO_MODULE, 4, Data_1, 1)
-  P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1))
-EndIf
+    P2_Digout_FIFO_Write(DIO_MODULE, 4, Data_1, 1)
+    P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1))
+  EndIf
   
-  
+Finish:
+  P2_Digout_Reset(DIO_MODULE, 0)

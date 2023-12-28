@@ -53,7 +53,7 @@ Event:
   new_time = Read_Timer()
   time_diff = Calc_TicksToNs(new_time - old_time)
   
-  If (P2_Digout_FIFO_Read_Timer(DIO_MODULE) > Par_2-1) Then
+  If (P2_Digout_FIFO_Read_Timer(DIO_MODULE) > Par_2 - 1) Then
     P2_Digout_FIFO_Clear(DIO_MODULE)
     P2_Digout_Fifo_Write(DIO_MODULE, Par_32, DATA_30, Par_33)
     P2_Digout_FIFO_Start(Shift_Left(1, DIO_MODULE - 1))
@@ -87,6 +87,8 @@ Event:
       P2_Burst_CRead_Unpacked8(AI_MODULE, Par_42 / 2, Data_40, Data_41, Data_42, Data_43, Data_44, Data_45, Data_46, Data_47, 1, 3)
   EndSelect
 Finish:
+  'Digital reset
+  P2_Digout_Reset(DIO_MODULE, 0)
   'Turn off LEDs
   P2_Set_LED(AI_MODULE, 0)
   P2_Set_LED(AO_MODULE, 0)
