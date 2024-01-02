@@ -22,6 +22,15 @@ class adwinLimits:
         AI_AVG_MODE_5: int = 1333
 
 
+@dataclass()
+class plotParams:
+    FIG_SIZE = (5, 3)
+    DPI = 600
+    LINEWIDTH = 2
+    INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
+    FONT_SIZE = 10  # font size for axis label
+
+
 @dataclass(init=False)
 class adwinSetting:
     """ADWIN settings class
@@ -172,18 +181,15 @@ class adwinSetting:
 
 
 class masterSequenceSetting:
-    def __init__(self, name, duration) -> None:
-        self.GENERAL = masterSequenceSetting.general(name=name, duration=duration)
+    def __init__(self, name) -> None:
+        self.GENERAL = masterSequenceSetting.general(name=name)
         self.DO = masterSequenceSetting.DigOut()
         self.DI = masterSequenceSetting.DigIn()
         self.AO = masterSequenceSetting.AnaOut()
         self.AI = masterSequenceSetting.AnaIn()
 
-    def __post_init__(self) -> None:
-        self.GENERAL.duration = self.GENERAL.duration
-
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.GENERAL.name}, duration={self.GENERAL.duration}s)"
+        return f"{self.__class__.__name__}, name={self.GENERAL.name}"
 
     def todict(self) -> dict:
         return {
@@ -228,16 +234,7 @@ class masterSequenceSetting:
     @dataclass
     class general:
         name: str = field(init=True)
-        duration: float = field(init=True)
-        PROCESS_DELAY: cond_real = cond_real(
-            minvalue=1, types=int
-        )  # Process delay in unit of ns
-
-        def __post_init__(self) -> None:
-            if self.duration is None:
-                raise ValueError("Duration must be specified")
-            if self.duration < 0:
-                raise ValueError("Duration must be positive")
+        PROCESS_DELAY: cond_real = cond_real(minvalue=1, types=int)
 
     @dataclass
     class DigOut:
