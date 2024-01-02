@@ -38,7 +38,7 @@ class masterProperties:
     duration: cond_real = cond_real(minvalue=1e-9, types=float)
 
 
-@dataclass
+@dataclass(init=True)
 class digitalPattern(util.univTool):
     pattern: bit_string = bit_string(None, maxsize=511)
 
@@ -55,19 +55,10 @@ class digitalPattern(util.univTool):
     def __len__(self):
         return len(self.pattern)
 
-    # def tolist(self) -> List[int]:
-    #     """Make pattern to integer list
-    #     Ex) '110011' --> [1,1,0,0,1,1]
-
-    #     Returns:
-    #         List[int]: bit pattern integer list
-    #     """
-    #     return bitarray(self.data).tolist()
-
 
 @dataclass
 class analogPattern(util.seqTool.patternGenerator):
-    data: List[float] = None
+    pattern: List[float] = None
 
     def __add__(self, other):
         NotImplementedError
@@ -76,7 +67,7 @@ class analogPattern(util.seqTool.patternGenerator):
         NotImplementedError
 
     def __len__(self):
-        return len(self.data)
+        return len(self.pattern)
 
 
 class slaveSequence(slaveProperties, util.painter):
@@ -106,7 +97,7 @@ class slaveSequence(slaveProperties, util.painter):
         return f"Adwin {self.types} Sequence | Name: {self.name}"
 
     def __str__(self) -> str:
-        return f"{self.pattern}"
+        return f"{self.pattern.pattern}"
 
     def __lt__(self, other):
         # Since adwin accept channel pattern as bitarray,
@@ -127,9 +118,9 @@ class slaveSequence(slaveProperties, util.painter):
 
     def plot(self):
         if self.types == "DO" or self.types == "DI":
-            self.__plot_digital()
+            util.painter.__plot_digital()
         elif self.types == "AO" or self.types == "AI":
-            self.__plot_analog()
+            util.painter.__plot_analog()
         else:
             raise ValueError(f"Invalid type {self.types}")
 
@@ -147,6 +138,9 @@ class masterSequence(masterProperties, util.painter):
 
     def __getitem__(self, key):
         return self.slaveSequences[key]
+
+    def __setitem__(self, key, value):
+        self.slaveSequences[key].pattern.pattern = value
 
     def set_update_period(self, DI: float, AI: float, AO: float):
         self.update_period = {"DI": DI, "AI": AI, "AO": AO}
