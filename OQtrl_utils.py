@@ -1,21 +1,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import ctypes
-import OQtrl_settings as settings
+import OQtrl_params as params
 import bitarray
 from dataclasses import dataclass
 from functools import reduce
 from operator import add
 from scipy import signal
-from OQtrl_settings import DO_UNIT_TIME
 
 
 class painter:
     def plot(self, input_sequences):
         self.__figure = plt.figure(
-            figsize=settings.plotParams.FIG_SIZE, dpi=settings.plotParams.DPI
+            figsize=params.plotParams.FIG_SIZE, dpi=params.plotParams.DPI
         )
-        __rect = settings.plotParams.INIT_RECT
+        __rect = params.plotParams.INIT_RECT
 
         for sequence in input_sequences:
             match sequence.types:
@@ -33,9 +32,7 @@ class painter:
             l, b, w, h = __rect
             __rect = [l, b - (h + 0.1), w, h]
 
-        self.figure.axes[0].set_xlabel(
-            "Time (s)", fontsize=settings.plotParams.FONT_SIZE
-        )
+        self.figure.axes[0].set_xlabel("Time (s)", fontsize=params.plotParams.FONT_SIZE)
 
     def __plot_digital(self, figure, sequence, rect, color: str = "k"):
         if rect is None:
@@ -56,7 +53,7 @@ class painter:
         )
         # y axis label = sequence name
         name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=settings.plotParams.FONT_SIZE)
+        ax.set_ylabel(name, fontsize=params.plotParams.FONT_SIZE)
         plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
 
         self.figure = figure
@@ -79,7 +76,7 @@ class painter:
         )
         # y axis label = sequence name
         name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=settings.plotParams)
+        ax.set_ylabel(name, fontsize=params.plotParams)
         plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
 
         self.figure = figure
@@ -262,7 +259,7 @@ class seqTool:
             for ch in do_chs:
                 ch_pattern[-ch - 1] = True
 
-            self.settings.DO.DO_FIFO_CH_PATTERN = ch_pattern.to01()
+            self.params.DO.DO_FIFO_CH_PATTERN = ch_pattern.to01()
 
         @staticmethod
         def digout_fifo_pattern(values, times):

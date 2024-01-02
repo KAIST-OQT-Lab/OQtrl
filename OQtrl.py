@@ -140,7 +140,6 @@ class masterSequence(masterProperties, util.painter):
     def __init__(self, name: str, duration: float) -> None:
         masterProperties.__init__(self, name=name, duration=duration)
         self.slaveSequences: Dict(slaveSequence) = dict()
-        self.params = OQs.masterSequenceSetting(self.name)
 
     def __repr__(self) -> str:
         return f" Master Sequence | Name: {self.name}, \n slaves: {[x.name for x in self.slaveSequences.values()]}"
@@ -150,6 +149,9 @@ class masterSequence(masterProperties, util.painter):
 
     def __getitem__(self, key):
         return self.slaveSequences[key]
+
+    def set_update_period(self, DI: float, AI: float, AO: float):
+        self.update_period = {"DI": DI, "AI": AI, "AO": AO}
 
     def append(self, slaveSequences):
         if isinstance(slaveSequences, slaveSequence):
@@ -192,13 +194,13 @@ class masterSequence(masterProperties, util.painter):
 
         match types:
             case "DO":
-                update_period = self.params.DO.DO_FIFO_UPDATE_PERIOD
+                pass
             case "DI":
-                update_period = NotImplementedError
+                update_period = self.update_period["DI"]
             case "AO":
-                update_period = self.params.AO.AO_UPDATE_PERIOD
+                update_period = self.update_period["AO"]
             case "AI":
-                update_period = self.params.AI.AI_UPDATE_PERIOD
+                update_period = self.update_period["AI"]
             case _:
                 raise ValueError(f"Invalid type {types}")
 
@@ -215,115 +217,6 @@ class masterSequence(masterProperties, util.painter):
 
     def clear(self) -> None:
         self.slaveSequences.clear()
-
-
-@dataclass(repr=False)
-class project:
-    """This is the second layer of the sequen
-
-    Raises:
-        TypeError: when appending masterSequences, if masterSequences is not sequence.masterSequence or list,tuple or dictionary of sequence.masterSequence, raise TypeError
-        ValueError: when deleting masterSequences, if name or index is not given, raise ValueError
-
-    Returns:
-        project: project class
-    """
-
-    name: str = field(default=None, init=True, repr=True)
-    order: int = cond_real(types=int)
-
-    def __post_init__(self) -> None:
-        self.__data: Dict(sequence.masterSequence) = dict()
-        self.__data_settings: Dict(OQs.masterSequenceSetting) = dict()
-        self.settings = OQs.adwinSetting()
-
-    def __repr__(self) -> str:
-        return f"Project | Name: {self.name}, Number of Master Sequences: {len(self.__data)}"
-
-    def __str__(self) -> str:
-        return f"{self.__data}"
-
-    def __getitem__(self, key):
-        return self.__data[key]
-
-    def append(self, masterSequences, order: int = None) -> None:
-        # If order is None, append master sequence to the end of the dictionary
-        if order is None:
-            # If dictionary is empty, order is 0
-            if len(self.__data) == 0:
-                order = 0
-            # If dictionary is not empty, order is the last order + 1
-            else:
-                order = len(self.__data) + 1
-        else:
-            # Check if order already exists
-            if order in self.__data.keys():
-                raise ValueError(f"order {order} already exists")
-            else:
-                order = order
-
-        # Check if masterSequences is processed
-        if not masterSequences.processed:
-            # if not, pre_process masterSequences
-            masterSequences.pre_process()
-
-        # Check if masterSequences is sequence.masterSequence
-        if isinstance(masterSequences, sequence.masterSequence):
-            if not masterSequences.processed:
-                masterSequences.pre_process()
-            else:
-                pass
-        # Check if masterSequences is list,tuple or dictionary of sequence.masterSequence
-        else:
-            # Check if masterSequences is list,tuple or dictionary
-            if not isinstance(masterSequences, list | tuple | dict):
-                raise TypeError(
-                    "masterSequences should be sequence.masterSequence or list,tuple or dictionary of sequence.masterSequence"
-                )
-            else:
-                NotImplementedError
-
-        self.__data[order] = masterSequences._return_final_sequences()
-        self.__data_settings[order] = masterSequences.settings
-        # Ordering dictionary key
-        self.__data = miscs.ordering_dict_key(self.__data)
-
-    # Swap method for master sequence
-    def swap(self, key_1: int, key_2: int) -> None:
-        order = (key_1, key_2)
-        self.__data = miscs.swap_dict_value(dictionary=self.__data, keys=order)
-        self.__data_settings = miscs.swap_dict_value(
-            dictionary=self.__data_settings, keys=order
-        )
-
-    def delete(self, **kwargs) -> None:
-        """Delete master sequence by name or index
-
-        Raises:
-            ValueError: if name or index is not given, raise ValueError
-        """
-        # Check if name or index is given
-        name: str = kwargs.get("name", None)
-        index: int = kwargs.get("index", None)
-
-        # If name is given, delete master sequence by name
-        if name is not None and isinstance(name, str):
-            self.__data = [x for x in self.__data if x.settings.GENERAL.name != name]
-            self.__data = miscs.ordering_dict_key(self.__data)
-        # If index is given, delete master sequence by index
-        elif index is not None:
-            del self.__data[index]
-            self.__data = miscs.ordering_dict_key(self.__data)
-        # If name or index is not given, raise ValueError
-        else:
-            raise ValueError("name or index should be given")
-
-    def _return_settings(self, idx):
-        return self.settings, self.__data_settings[idx]
-
-    @property
-    def mode(self):
-        return self.settings.GENERAL.EXPERIMENT_MODE
 
 
 class translator:
