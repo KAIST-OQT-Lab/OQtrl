@@ -23,7 +23,7 @@ DO_UNIT_TIME = 1e-9 * 10  # 10ns
 PROCESSORTYPE = "12"
 
 
-@dataclass
+@dataclass(init=True)
 class slaveProperties:
     name: str
     types: Literal["DO", "DI", "AO", "AI"] = OneOf(None, "DO", "DI", "AO", "AI")
@@ -32,7 +32,7 @@ class slaveProperties:
     channel: cond_real = cond_real(minvalue=0, maxvalue=31, types=int)
 
 
-@dataclass
+@dataclass(init=True)
 class masterProperties:
     name: str
     duration: cond_real = cond_real(minvalue=1e-9, types=float)
@@ -57,6 +57,17 @@ class digitalPattern(util.univTool):
 
 
 @dataclass
+class digitalPatternABS(util.univTool):
+    pattern: List[tuple] = field(default_factory=list, init=True)
+
+    def __post_init__(self):
+        self.pattern = sorted(self.pattern, key=lambda x: x[1])
+
+    def __len__(self):
+        return len(self.pattern)
+
+
+@dataclass(init=True)
 class analogPattern(util.seqTool.patternGenerator):
     pattern: List[float] = None
 
@@ -87,8 +98,9 @@ class slaveSequence(slaveProperties, util.painter):
             channel=channel,
             update_period=update_period,
         )
-
-        if self.types == "DO" or self.types == "DI":
+        if self.types == "DO":
+            self.pattern = digitalPatternABS()
+        elif self.types == "DI":
             self.pattern = digitalPattern()
         elif self.types == "AO" or self.types == "AI":
             self.pattern = analogPattern()
