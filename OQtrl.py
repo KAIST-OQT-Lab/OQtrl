@@ -194,7 +194,7 @@ class masterSequence(masterProperties, util.painter):
 
         match types:
             case "DO":
-                pass
+                update_period = None
             case "DI":
                 update_period = self.update_period["DI"]
             case "AO":
