@@ -66,6 +66,19 @@ class digitalPatternABS(util.univTool):
     def __len__(self):
         return len(self.pattern)
 
+    def __setattr__(self, name, value):
+        value = sorted(value, key=lambda x: x[1])
+
+        if name == "pattern":
+            if not isinstance(value, list):
+                raise TypeError("pattern should be list")
+            else:
+                if all(isinstance(x, tuple) for x in value):
+                    self.__dict__[name] = value
+                else:
+                    raise TypeError("pattern should be list of tuple")
+        else:
+            raise AttributeError(f"Invalid attribute {name}")
 
 @dataclass(init=True)
 class analogPattern(util.seqTool.patternGenerator):
