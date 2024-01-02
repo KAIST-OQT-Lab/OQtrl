@@ -97,8 +97,6 @@ class slaveSequence(slaveProperties, util.painter):
             update_period=update_period,
         )
 
-        if self.update_period is None:
-            raise ValueError("update period is not defined")
         if self.types == "DO" or self.types == "DI":
             self.pattern = digitalPattern()
         elif self.types == "AO" or self.types == "AI":
