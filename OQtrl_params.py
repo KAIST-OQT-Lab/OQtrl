@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, field
 from OQtrl_descriptors import bit_string
 from ctypes import c_uint32
 
@@ -18,16 +18,22 @@ class adwinLimits:
     AI_AVG_MODE_5: int = 1333
 
 
-@dataclass
+@dataclass(init=True)
 class plotParams:
-    FIG_SIZE = (5, 3)
-    DPI = 600
-    LINEWIDTH = 2
-    INIT_RECT = [0, 0, 1.2, 0.4]  # left, bottom, width, height
-    FONT_SIZE = 10  # font size for axis label
+    FIG_SIZE: tuple = (5, 3)
+    DPI: int = 600
+    LINEWIDTH: int = 2
+    RECT: list = field(default_factory=list)  # left, bottom, width, height
+    FONT_SIZE: int = 10  # font size for axis label
+
+    def __post_init__(self):
+        self.RECT = [0, 0, 1.2, 0.4]
+
+    def as_dict(self):
+        return asdict(self)
 
 
-@dataclass
+@dataclass(init=True)
 class digOutParams:
     """Digital output settings class
 
@@ -42,6 +48,9 @@ class digOutParams:
     DO_FIFO_WRITE_COUNT: int = None
     DO_FIFO_WRITE_STARTING_INDEX = None
 
+    def as_dict(self):
+        return asdict(self)
+
 
 @dataclass
 class digInParams:
@@ -53,6 +62,9 @@ class digInParams:
 
     DI_UPDATE_PERIOD: int = None
 
+    def as_dict(self):
+        return asdict(self)
+
 
 @dataclass
 class anaOutParams:
@@ -63,6 +75,9 @@ class anaOutParams:
     """
 
     AO_UPDATE_PERIOD = None
+
+    def as_dict(self):
+        return asdict(self)
 
 
 @dataclass
@@ -84,6 +99,9 @@ class anaInParams:
     AI_BURST_CHANNELS = None
     AI_BURST_BUFFER_SIZE = None
     AI_BURST_TRIGGER_MODE = None
+
+    def as_dict(self):
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -116,6 +134,9 @@ class paramReferNum:
     AI_BURST_TRIGGER_MODE: int = 44
     AO_UPDATE_PERIOD: int = 50
 
+    def as_dict(self):
+        return asdict(self)
+
 
 @dataclass(frozen=True)
 class dataReferNum:
@@ -144,6 +165,9 @@ class dataReferNum:
     AI_CH7_PATTERN: int = 46
     AI_CH8_PATTERN: int = 47
     AO_PATTERN: int = 50
+
+    def as_dict(self):
+        return asdict(self)
 
 
 class adwinParams:
