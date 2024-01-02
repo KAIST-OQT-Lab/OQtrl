@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from OQtrl_descriptors import bit_string
+from ctypes import c_uint32
 
 UNIT_TIME = 1e-9  # 1ns
 DO_UNIT_TIME = 1e-9 * 10  # 10ns
@@ -37,6 +38,7 @@ class digOutParams:
     """
 
     DO_FIFO_CH_PATTERN: bit_string = bit_string(maxsize=32)
+    DO_FIFO_PATTERN: c_uint32 = None
     DO_FIFO_WRITE_COUNT: int = None
     DO_FIFO_WRITE_STARTING_INDEX = None
 
@@ -102,6 +104,8 @@ class paramReferNum:
     """
 
     DIO_CH_CONFIG: int = 1
+    DURATION: int = 2
+    EXPERIMENT_MODE: int = 11
     DO_FIFO_CH_PATTERN: int = 31
     DO_FIFO_WRITE_COUNT: int = 32
     DO_FIFO_WRITE_STARTING_INDEX: int = 33
