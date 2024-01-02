@@ -60,9 +60,6 @@ class digitalPattern(util.univTool):
 class digitalPatternABS(util.univTool):
     pattern: List[tuple] = field(default_factory=list, init=True)
 
-    def __post_init__(self):
-        self.pattern = sorted(self.pattern, key=lambda x: x[1])
-
     def __len__(self):
         return len(self.pattern)
 
@@ -79,6 +76,13 @@ class digitalPatternABS(util.univTool):
                     raise TypeError("pattern should be list of tuple")
         else:
             raise AttributeError(f"Invalid attribute {name}")
+
+    def __delattr__(self, name):
+        if name == "pattern":
+            self.__dict__[name] = []
+        else:
+            raise AttributeError(f"Invalid attribute {name}")
+
 
 @dataclass(init=True)
 class analogPattern(util.seqTool.patternGenerator):
@@ -132,14 +136,8 @@ class slaveSequence(slaveProperties, util.painter):
     def __len__(self):
         return len(self.pattern)
 
-    def update(self, new_pattern):
-        self.pattern.update(new_pattern)
-
-    def append(self, new_pattern):
-        self.pattern.append(new_pattern)
-
     def delete(self):
-        self.pattern = None
+        self.pattern
 
     def plot(self):
         if self.types == "DO" or self.types == "DI":
