@@ -126,27 +126,28 @@ class slaveSequence(sequence, util.painter):
 
 
 @dataclass
-class masterSequence(sequence):
+class masterSequence(sequence, util.painter):
+    name: str
+
     def __post_init__(self) -> None:
-        self.__slaveSequences: Dict(sequence.slaveSequence) = dict()
-        self.__processedSlaves: dict = dict()
-        self.settings = OQs.masterSequenceSetting(self.name, self.duration)
+        self.slaveSequences: Dict(sequence.slaveSequence) = dict()
+        self.params = OQs.masterSequenceSetting(self.name, self.duration)
 
     def __len__(self) -> int:
-        return len(self.__slaveSequences)
+        return len(self.duration)
 
     def __repr__(self) -> str:
-        return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.__slaveSequences.values()]}"
+        return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.slaveSequences.values()]}"
 
     def __str__(self) -> str:
-        return f"{self.__slaveSequences}"
+        return f"{self.slaveSequences}"
 
     def __getitem__(self, key):
-        return self.__slaveSequences[key]
+        return self.slaveSequences[key]
 
     def append(self, slaveSequence):
         if isinstance(slaveSequence, sequence.slaveSequence):
-            self.__slaveSequences.append(slaveSequence)
+            self.slaveSequences.append(slaveSequence)
         else:
             if not isinstance(slaveSequence, list | tuple):
                 raise TypeError(
@@ -154,7 +155,7 @@ class masterSequence(sequence):
                 )
             else:
                 if all(isinstance(x, sequence.slaveSequence) for x in slaveSequence):
-                    self.__slaveSequences += slaveSequence
+                    self.slaveSequences += slaveSequence
                 else:
                     raise TypeError(
                         "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
@@ -205,30 +206,10 @@ class masterSequence(sequence):
             channel=ch,
         )
         # Append slave sequence object to lists
-        self.__slaveSequences[f"{name}"] = sequence_obj
-
-    def pre_process(self):
-        self.__settings = pre_processor.return_settings()
-        self.__processedSlaves = pre_processor.result
-
-        self.processed = True
+        self.slaveSequences[f"{name}"] = sequence_obj
 
     def clear(self) -> None:
-        self.__slaveSequences.clear()
-        self.__processedSlaves = None
-
-    @property
-    def name(self):
-        return self.set
-
-    @property
-    def duration(self):
-        return self.settings.GENERAL.duration
-
-    def _return_final_sequences(self):
-        return self.__processedSlaves
-
-    pass
+        self.slaveSequences.clear()
 
 
 @dataclass(repr=False)
@@ -340,45 +321,27 @@ class project:
         return self.settings.GENERAL.EXPERIMENT_MODE
 
 
-class _masterSequenceProcessor:
-    def __merge_slaves_DO(self):
-        update_period = float(self.settings.DO.DO_FIFO_UPDATE_PERIOD) / DO_UNIT_TIME
-        duration = float(self.settings.GENERAL.duration) / DO_UNIT_TIME
-        # Find empty channels
-        tot_channels = set(np.arange(0, max(self.DO_chs) + 1))
-        empty_channels = list(tot_channels - self.DO_chs)
-        # Create dump slaves for empty channels
-        dump_pattern = sequence.pattern(
-            "DO", data="0" * len(self.DO_slaves[0].pattern._data)
+class translator:
+    def translate_DO(self):
+        update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
+        tot_channels = set(np.arange(0, max(self._do_chs) + 1))
+        empty_channels = list(tot_channels - self._do_chs)
+        for ch in empty_channels:
+            self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
+            self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
+        self._do.sort()
+
+        do_patterns = [x.pattern for x in self._do]
+        do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
+        time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
+        final_do_pattern = util.seqTool.master.digout_fifo_pattern(
+            do_patterns, time_patterns
         )
-        dump_slaves = [
-            sequence.slaveSequence(
-                types="DO",
-                duration=duration,
-                update_period=update_period,
-                channel=ch,
-                pattern=dump_pattern,
-            )
-            for ch in empty_channels
-        ]
-        # Add empty channels
-        self.DO_slaves += dump_slaves
-        # Sort DO sequences by channel
-        self.DO_slaves.sort()
 
-        # DOs
-        DOs = [x.pattern._data for x in self.DO_slaves]
-        # Adding patterns
-        DO_signals = np.array([int(x, 2) for x in reduce(add, DOs)])
-        # Correspoding update period time pattern
-        time_pattern = np.array([int(update_period)]).repeat(len(DO_signals))
-        # Generate DO FIFO pattern (pattern, time, pattern, time ...)
-        Final_DIO_pattern = miscs.digital.DO_FIFO.pattern_gen(DO_signals, time_pattern)
+        self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
+        self.__translatedSlaves["DO"] = final_do_pattern
 
-        self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(Final_DIO_pattern) / 2)
-        self.processed_result["DO"] = miscs.create_int_values_C(Final_DIO_pattern)
-
-    def __merge_slaves_AO(self):
+    def translate_AO(self):
         update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
         duration = float(self.settings.GENERAL.duration)
         # Find empty channels
@@ -452,41 +415,30 @@ class _masterSequenceProcessor:
 
         self.processed_result["AO"] = result
 
-    def __merge_slaves_DI(self):
-        return None
 
-    def __merge_slaves_AI(self):
-        return None
-
-    def return_settings(self):
-        return self.settings
-
-    @property
-    def result(self):
-        return self.processed_result
-
-
-class manager:
-    def __init__(self, boot=True, deviceno=1) -> None:
-        adwin = aw.ADwin(DeviceNo=deviceno, useNumpyArrays=True)
-        self.__device = adwin
-        self.__boot_status = boot
-        self.__projects = dict()
-        # Boot ADwin-System
-        if boot:
-            self.boot()
-            self.__boot_status = True
-        else:
-            print("Adwin not booted, please boot manually")
+class sequenceManager:
+    def __init__(self) -> None:
+        self.masterSequences: Dict[sequence.masterSequence] = dict()
 
     def __setitem__(self, key, value):
         if isinstance(value, sequence.project):
-            return self.__projects[key] == value
+            return self.masterSequences[key] == value
         else:
             raise TypeError("value should be sequence.project")
 
     def __getitem__(self, key):
-        return self.__projects[key]
+        return self.masterSequences[key]
+
+
+class deviceManager:
+    def __init__(self, boot=True, deviceno=1) -> None:
+        adwin = aw.ADwin(DeviceNo=deviceno, useNumpyArrays=True)
+        self.__device_adwin = adwin
+        # Boot ADwin-System
+        if boot:
+            self.boot()
+        else:
+            print("Adwin not booted, please boot manually")
 
     def boot(self):
         BTL = self.__device.ADwindir + "ADwin" + PROCESSORTYPE + ".btl"
@@ -496,6 +448,17 @@ class manager:
             self.__ProceesorType = self.__device.Processor_Type()
         except ValueError:
             raise ValueError("ADwin not connected")
+
+
+class validator:
+    pass
+
+
+class manager(sequenceManager, deviceManager, translator, validator):
+    def __init__(self, boot=True, deviceno=1) -> None:
+        super().__init__()
+        super().__init__(boot=boot, deviceno=deviceno)
+        super().__init__()
 
     def create_project(self, name: str = None, order: int = None):
         """Create new project to manager

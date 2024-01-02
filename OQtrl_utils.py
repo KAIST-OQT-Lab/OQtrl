@@ -11,27 +11,27 @@ from OQtrl_settings import DO_UNIT_TIME
 
 
 class painter:
-    def plot(self):
-        self.figure = plt.figure(
+    def plot(self, input_sequences):
+        self.__figure = plt.figure(
             figsize=settings.plotParams.FIG_SIZE, dpi=settings.plotParams.DPI
         )
-        rect = settings.plotParams.INIT_RECT
+        __rect = settings.plotParams.INIT_RECT
 
-        for sequence in self.sequences:
+        for sequence in input_sequences:
             match sequence.types:
                 case "DO":
-                    self.plot_DO(self.figure, sequence, rect)
+                    self.plot_DO(self.__figure, sequence, __rect)
                 case "DI":
-                    self.plot_DI(self.figure, sequence, rect)
+                    self.plot_DI(self.__figure, sequence, __rect)
                 case "AO":
-                    self.plot_AO(self.figure, sequence, rect)
+                    self.plot_AO(self.__figure, sequence, __rect)
                 case "AI":
-                    self.plot_AI(self.figure, sequence, rect)
+                    self.plot_AI(self.__figure, sequence, __rect)
                 case _:
                     raise ValueError(f"Invalid type {sequence.types}")
 
-            l, b, w, h = rect
-            rect = [l, b - (h + 0.1), w, h]
+            l, b, w, h = __rect
+            __rect = [l, b - (h + 0.1), w, h]
 
         self.figure.axes[0].set_xlabel(
             "Time (s)", fontsize=settings.plotParams.FONT_SIZE
@@ -275,87 +275,6 @@ class seqTool:
 
             return pattern
 
-        def merge_do(self):
-            duration = self.duration / DO_UNIT_TIME
-            update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
-            tot_channels = set(np.arange(0, max(self._do_chs) + 1))
-            empty_channels = list(tot_channels - self._do_chs)
-            for ch in empty_channels:
-                self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
-                self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
-            self._do.sort()
-
-            do_patterns = [x.pattern for x in self._do]
-            do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
-            time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
-            final_do_pattern = seqTool.master.digout_fifo_pattern(
-                do_patterns, time_patterns
-            )
-
-            self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
-            self.__processedSlaves["DO"] = final_do_pattern
-
-
-class projTool:
-    pass
-    # @staticmethod
-    # def ordering_dict_key(dictionary: dict) -> dict:
-    #     """For a given dictionary, make the keys in consecutive ascending order.
-    #     For example,
-    #     Args:
-    #         dictionary (dict): dictionary to order
-
-    #     Returns:
-    #         dict: ordered dictionary
-    #     """
-    #     copied_dict: dict = deepcopy(dictionary)
-    #     sorted_keys = sorted(copied_dict.keys())
-    #     current_key = sorted_keys[0]
-
-    #     for key in sorted_keys[1:]:
-    #         if key != current_key + 1:
-    #             copied_dict[current_key + 1] = copied_dict.pop(key)
-    #         current_key += 1
-
-    #     return copied_dict
-
-    # @staticmethod
-    # def swap_dict_value(dictionary: dict, *keys: List[int]) -> dict:
-    #     """Swap the values of the original and moving keys in the dictionary.
-    #     *keys should be a tuple of two keys to swap.
-
-    #     For example, swap_dict_value( A, 1, 3) for A = {1:'first',2:'second',3:'third'} returns
-    #     --> A' = {1:'third',2:'second',3:'first'}
-
-    #     Args:
-    #         dictionary (dict): dictionary to swap
-
-    #     Raises:
-    #         ValueError: if the number of keys is not 2, raise ValueError
-    #         KeyError: if the original or moving key does not exist in the dictionary, raise KeyError
-
-    #     Returns:
-    #         dict: swapped dictionary
-    #     """
-    #     if len(keys) != 2:
-    #         raise ValueError("Invalid number of keys")
-
-    #     key_1, key_2 = keys
-
-    #     # Get the values corresponding to the original and moving indices
-    #     original_value = dictionary.get(key_1)
-    #     moving_value = dictionary.get(key_2)
-
-    #     # Check if both indices exist in the dictionary
-    #     if original_value is not None and moving_value is not None:
-    #         # Swap the values in the dictionary
-    #         dictionary[key_1] = moving_value
-    #         dictionary[key_2] = original_value
-    #     else:
-    #         raise KeyError("Invalid key")
-
-    #     return dictionary
-
 
 class univTool:
     """
@@ -425,7 +344,6 @@ class univTool:
         Returns:
             ctypes.c_int32: ctypes.c_int32
         """
-        datatype = ctypes.c_int32 * len(array)
         return ctypes.c_int32(*array)
 
     @staticmethod
@@ -438,5 +356,4 @@ class univTool:
         Returns:
             ctypes.c_float: ctypes.c_float
         """
-        datatype = ctypes.c_float * len(array)
         return ctypes.c_float(*array)
