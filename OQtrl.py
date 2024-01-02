@@ -1,6 +1,6 @@
 import numpy as np
 import ADwin as aw
-import OQtrl_params as OQs
+import OQtrl_params as params
 import OQtrl_utils as util
 from OQtrl_descriptors import cond_real, OneOf, bit_string
 from dataclasses import dataclass, field
@@ -10,7 +10,7 @@ from functools import reduce
 from operator import add
 from typing import Literal, List, Dict
 from bitarray import bitarray
-
+from matplotlib.pyplot import figure, show
 
 # Path of ADbasic process binary file
 AD_PROCESS_DIR = {
@@ -38,7 +38,7 @@ class masterProperties:
     duration: cond_real = cond_real(minvalue=1e-9, types=float)
 
 
-@dataclass(init=True)
+@dataclass(init=True, repr=True)
 class digitalPattern(util.univTool):
     pattern: bit_string = bit_string(None, maxsize=511)
 
@@ -56,7 +56,7 @@ class digitalPattern(util.univTool):
         return len(self.pattern)
 
 
-@dataclass
+@dataclass(repr=False)
 class digitalPatternABS(util.univTool):
     pattern: List[tuple] = field(default_factory=list, init=True)
 
@@ -140,49 +140,53 @@ class slaveSequence(slaveProperties, util.painter):
         self.pattern
 
     def plot(self):
-        if self.types == "DO" or self.types == "DI":
-            util.painter.__plot_digital()
-        elif self.types == "AO" or self.types == "AI":
-            util.painter.__plot_analog()
-        else:
-            raise ValueError(f"Invalid type {self.types}")
+        self.__figure = figure(
+            figsize=params.plotParams.FIG_SIZE, dpi=params.plotParams.DPI
+        )
+
+        match self.types:
+            case "DO":
+                self._painter__plot_DO(self.__figure, self)
+            case "DI":
+                self._painter__plot_DI(self.__figure, self)
+            case "AO" | "AI":
+                self._painter__plot_analog(self.__figure, self)
+            case _:
+                raise ValueError(f"Invalid type {self.types}")
+
+        self.__figure.axes[0].set_xlabel(
+            "Time (s)", fontsize=params.plotParams.FONT_SIZE
+        )
+        show()
 
 
 class masterSequence(masterProperties, util.painter):
     def __init__(self, name: str, duration: float) -> None:
         masterProperties.__init__(self, name=name, duration=duration)
-        self.slaveSequences: Dict(slaveSequence) = dict()
+        self.slave_sequences: Dict(slaveSequence) = dict()
+        self.plot_params = params.plotParams()
 
     def __repr__(self) -> str:
-        return f" Master Sequence | Name: {self.name}, \n slaves: {[x.name for x in self.slaveSequences.values()]}"
+        return f" Master Sequence | Name: {self.name}, \n slaves: {[x.name for x in self.slave_sequences.values()]}"
 
     def __str__(self) -> str:
-        return f"{self.slaveSequences}"
+        return f"{self.slave_sequences}"
 
     def __getitem__(self, key):
-        return self.slaveSequences[key]
+        return self.slave_sequences[key]
 
     def __setitem__(self, key, value):
-        self.slaveSequences[key].pattern.pattern = value
+        self.slave_sequences[key].pattern.pattern = value
 
     def set_update_period(self, DI: float, AI: float, AO: float):
-        self.update_period = {"DI": DI, "AI": AI, "AO": AO}
+        """Set update period for each slave sequence types.
+        Args:
+            DI (float): detects rising/falling edge every DI seconds
+            AI (float): AI samples analog input every AI seconds.
+            AO (float): AO outputs analog output every AO seconds.
+        """
 
-    def append(self, slaveSequences):
-        if isinstance(slaveSequences, slaveSequence):
-            self.slaveSequences.append(slaveSequences)
-        else:
-            if not isinstance(slaveSequences, list | tuple):
-                raise TypeError(
-                    "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
-                )
-            else:
-                if all(isinstance(x, slaveSequence) for x in slaveSequences):
-                    self.slaveSequences += slaveSequences
-                else:
-                    raise TypeError(
-                        "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
-                    )
+        self.update_period = {"DI": DI, "AI": AI, "AO": AO}
 
     def create_slave(
         self,
@@ -203,7 +207,7 @@ class masterSequence(masterProperties, util.painter):
         # Check if name is given
         if name is None:
             # If name is not given, set name to "Sequence #(number)"
-            name = f"Sequence # {len(self.slaveSequences)+1}"
+            name = f"Sequence # {len(self.slave_sequences)+1}"
         else:
             name = name
 
@@ -228,10 +232,36 @@ class masterSequence(masterProperties, util.painter):
             channel=ch,
         )
         # Append slave sequence object to lists
-        self.slaveSequences[f"{name}"] = sequence_obj
+        self.slave_sequences[f"{name}"] = sequence_obj
 
     def clear(self) -> None:
-        self.slaveSequences.clear()
+        self.slave_sequences.clear()
+
+    def plot(self):
+        self.__figure = figure(
+            figsize=self.plot_params.FIG_SIZE, dpi=self.plot_params.DPI
+        )
+        param_dict = self.plot_params.as_dict()
+
+        for sequence in self.slave_sequences.values():
+            match sequence.types:
+                case "DO":
+                    self._painter__plot_DO(self.__figure, sequence, **param_dict)
+                case "DI":
+                    self._painter__plot_DI(self.__figure, sequence, **param_dict)
+                case "AO" | "AI":
+                    self._painter__plot_analog(self.__figure, sequence, **param_dict)
+                case _:
+                    raise ValueError(f"Invalid type {sequence.types}")
+
+            l, b, w, h = param_dict["RECT"]
+            new_rect = [l, b - (h + 0.1), w, h]
+            param_dict["RECT"] = new_rect
+
+        self.__figure.axes[0].set_xlabel(
+            "Time (s)", fontsize=params.plotParams.FONT_SIZE
+        )
+        show()
 
 
 class translator:
@@ -260,7 +290,7 @@ class translator:
         # Find empty channels
         tot_channels = set(np.arange(1, 9))
         empty_channels = list(tot_channels - self.AO_chs)
-        dump_pattern = sequence.pattern(
+        dump_pattern = slaveSequence.pattern(
             "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
         )
         dump_slaves = [
@@ -373,20 +403,6 @@ class manager(sequenceManager, deviceManager, translator, validator):
         super().__init__(boot=boot, deviceno=deviceno)
         super().__init__()
 
-    def create_project(self, name: str = None, order: int = None):
-        """Create new project to manager
-
-        Args:
-            name (str, optional): name of project. Defaults to None.
-            order (int, optional): order for projects.
-
-        Returns:
-            sequence.project: project class
-        """
-
-        project = sequence.project(name=name, order=order)
-        self.__projects[f"{name}"] = project
-
     def start(self, project: str = None, **kwargs):
         # If ADwin is not booted, boot ADwin
         if not self.__boot_status:
@@ -436,7 +452,7 @@ class manager(sequenceManager, deviceManager, translator, validator):
         self.__device.Stop_Process(1)
 
     def __set_params(self, ad_set, ma_set, data):
-        assigner = OQs.settingAssigner(ad_set, ma_set)
+        assigner = params.settingAssigner(ad_set, ma_set)
         assigner.assign()
         fin_ad_set = assigner.adw
 
@@ -498,7 +514,10 @@ class manager(sequenceManager, deviceManager, translator, validator):
         # If all is True, return all parameters
         if all:
             adwin_params = self.__device.Get_Par_All()
-            for option, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items():
+            for (
+                option,
+                params,
+            ) in params.adwinSetting._assigned().PARAMS.__dict__.items():
                 temp_params_dict[option] = adwin_params[params - 1]
             return temp_params_dict
 
@@ -508,13 +527,13 @@ class manager(sequenceManager, deviceManager, translator, validator):
                 adwin_params = self.__device.Get_Par(number)
                 option = [
                     options
-                    for options, params in OQs.adwinSetting._assigned().PARAMS.__dict__.items()
+                    for options, params in params.adwinSetting._assigned().PARAMS.__dict__.items()
                     if params == number
                 ][0]
                 return f"{option}:{adwin_params}"
 
             elif number is None and option is not None:
-                par_num = OQs.adwinSetting._assigned().PARAMS.__dict__.get(
+                par_num = params.adwinSetting._assigned().PARAMS.__dict__.get(
                     "DIO_CH_CONFIG"
                 )
                 return f"option: {self.__device.Get_Par(par_num)}"

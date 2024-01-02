@@ -10,57 +10,47 @@ from scipy import signal
 
 
 class painter:
-    def plot(self, input_sequences):
-        self.__figure = plt.figure(
-            figsize=params.plotParams.FIG_SIZE, dpi=params.plotParams.DPI
-        )
-        __rect = params.plotParams.INIT_RECT
+    def __plot_DO(self, figure, slaveSequence, **plotParams):
+        rect = plotParams.get("RECT", params.plotParams().RECT)
+        linewidth = plotParams.get("LINEWIDTH", params.plotParams.LINEWIDTH)
+        fontsize = plotParams.get("FONTSIZE", params.plotParams.FONT_SIZE)
 
-        for sequence in input_sequences:
-            match sequence.types:
-                case "DO":
-                    self.plot_DO(self.__figure, sequence, __rect)
-                case "DI":
-                    self.plot_DI(self.__figure, sequence, __rect)
-                case "AO":
-                    self.plot_AO(self.__figure, sequence, __rect)
-                case "AI":
-                    self.plot_AI(self.__figure, sequence, __rect)
-                case _:
-                    raise ValueError(f"Invalid type {sequence.types}")
+        pattern = slaveSequence.pattern.pattern
+        time = [i[1] for i in pattern]
+        value = [i[0] for i in pattern]
 
-            l, b, w, h = __rect
-            __rect = [l, b - (h + 0.1), w, h]
+        if time[-1] < slaveSequence.duration:
+            time.append(slaveSequence.duration)
+            value.append(value[-1])
 
-        self.figure.axes[0].set_xlabel("Time (s)", fontsize=params.plotParams.FONT_SIZE)
-
-    def __plot_digital(self, figure, sequence, rect, color: str = "k"):
-        if rect is None:
-            rect = self.configuration.INIT_RECT
-        # Generate time array for x axis
-        time = np.linspace(
-            0, float(sequence.duration), len(sequence.pattern), endpoint=False
-        )
-        # add axes to figure
         ax = figure.add_axes(rect)
-        # plot step function
         ax.step(
             time,
-            sequence.pattern._data.tolist(),
+            value,
             where="post",
-            color=color,
-            linewidth=self.configuration.LINEWIDTH,
+            color="k",
+            linewidth=linewidth,
         )
-        # y axis label = sequence name
-        name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=params.plotParams.FONT_SIZE)
+        name = (
+            slaveSequence.name
+            + "\n"
+            + slaveSequence.types
+            + " "
+            + str(slaveSequence.channel)
+        )
+        ax.set_ylabel(name, fontsize=fontsize)
         plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
 
-        self.figure = figure
+        self.__figure = figure
 
-    def __plot_analog(self, figure, sequence, rect, color: str = "k"):
-        if rect is None:
-            rect = self.configuration.INIT_RECT
+    def __plot_DI(self, figure, sequence, **plotParams):
+        return NotImplementedError
+
+    def __plot_analog(self, figure, sequence, **plotParams):
+        rect = plotParams.get("RECT", params.plotParams().RECT)
+        linewidth = plotParams.get("LINEWIDTH", params.plotParams.LINEWIDTH)
+        fontsize = plotParams.get("FONTSIZE", params.plotParams.FONT_SIZE)
+
         # Generate time array for x axis
         time = np.linspace(
             0, float(sequence.duration), len(sequence.pattern._data), endpoint=False
@@ -71,15 +61,15 @@ class painter:
         ax.plot(
             time,
             sequence.pattern._data,
-            color=color,
-            linewidth=self.configuration.LINEWIDTH,
+            color="k",
+            linewidth=linewidth,
         )
         # y axis label = sequence name
         name = sequence.name + "\n" + sequence.types + " " + str(sequence.channel)
-        ax.set_ylabel(name, fontsize=params.plotParams)
+        ax.set_ylabel(name, fontsize=fontsize)
         plt.gca().yaxis.label.set(rotation="horizontal", ha="right")
 
-        self.figure = figure
+        self.__figure = figure
 
 
 class seqTool:
