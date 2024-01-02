@@ -1,6 +1,6 @@
 import numpy as np
 import ADwin as aw
-import OQtrl_settings as OQs
+import OQtrl_params as OQs
 import OQtrl_utils as util
 from OQtrl_descriptors import cond_real, OneOf, bit_string
 from dataclasses import dataclass, field
@@ -21,6 +21,21 @@ AD_PROCESS_DIR = {
 UNIT_TIME = 1e-9  # 1ns
 DO_UNIT_TIME = 1e-9 * 10  # 10ns
 PROCESSORTYPE = "12"
+
+
+@dataclass
+class slaveProperties:
+    name: str
+    types: Literal["DO", "DI", "AO", "AI"] = OneOf(None, "DO", "DI", "AO", "AI")
+    duration: float = None
+    update_period: float = None
+    channel: cond_real = cond_real(minvalue=0, maxvalue=31, types=int)
+
+
+@dataclass
+class masterProperties:
+    name: str
+    duration: cond_real = cond_real(minvalue=1e-9, types=float)
 
 
 @dataclass
@@ -64,32 +79,28 @@ class analogPattern(util.seqTool.patternGenerator):
         return len(self.data)
 
 
-@dataclass
-class sequence:
-    name: str
-    duration: cond_real = cond_real(minvalue=1e-9, types=float)
-
-
-@dataclass
-class slaveSequence(sequence, util.painter):
-    types: Literal["DO", "DI", "AO", "AI"] = OneOf(None, "DO", "DI", "AO", "AI")
-    update_period: float = None
-    channel: cond_real = cond_real(minvalue=0, maxvalue=31, types=int)
-
-    def __post_init__(self):
-        if self.update_period is None:
-            raise ValueError("update period is not defined")
-
-        self.__settings = OQs.slaveSequenceSetting(
-            name=self.name,
-            duration=self.duration,
-            update_period=self.update_period,
-            types=self.types,
-            channel=self.channel,
+class slaveSequence(slaveProperties, util.painter):
+    def __init__(
+        self,
+        name: str,
+        types: Literal["DO", "DI", "AO", "AI"],
+        duration: float,
+        channel: int,
+        update_period: float = None,
+    ):
+        slaveProperties.__init__(
+            self,
+            name=name,
+            types=types,
+            duration=duration,
+            channel=channel,
+            update_period=update_period,
         )
 
+        if self.update_period is None:
+            raise ValueError("update period is not defined")
         if self.types == "DO" or self.types == "DI":
-            self.pattern = digitalPattern("0")
+            self.pattern = digitalPattern()
         elif self.types == "AO" or self.types == "AI":
             self.pattern = analogPattern()
 
@@ -125,19 +136,14 @@ class slaveSequence(sequence, util.painter):
             raise ValueError(f"Invalid type {self.types}")
 
 
-@dataclass
-class masterSequence(sequence, util.painter):
-    name: str
-
-    def __post_init__(self) -> None:
-        self.slaveSequences: Dict(sequence.slaveSequence) = dict()
-        self.params = OQs.masterSequenceSetting(self.name, self.duration)
-
-    def __len__(self) -> int:
-        return len(self.duration)
+class masterSequence(masterProperties, util.painter):
+    def __init__(self, name: str, duration: float) -> None:
+        masterProperties.__init__(self, name=name, duration=duration)
+        self.slaveSequences: Dict(slaveSequence) = dict()
+        self.params = OQs.masterSequenceSetting(self.name)
 
     def __repr__(self) -> str:
-        return f" Master Sequence | Name: {self.name}, Duration: {self.duration} \n slaves: {[x.name for x in self.slaveSequences.values()]}"
+        return f" Master Sequence | Name: {self.name}, \n slaves: {[x.name for x in self.slaveSequences.values()]}"
 
     def __str__(self) -> str:
         return f"{self.slaveSequences}"
@@ -145,22 +151,21 @@ class masterSequence(sequence, util.painter):
     def __getitem__(self, key):
         return self.slaveSequences[key]
 
-    def append(self, slaveSequence):
-        if isinstance(slaveSequence, sequence.slaveSequence):
-            self.slaveSequences.append(slaveSequence)
+    def append(self, slaveSequences):
+        if isinstance(slaveSequences, slaveSequence):
+            self.slaveSequences.append(slaveSequences)
         else:
-            if not isinstance(slaveSequence, list | tuple):
+            if not isinstance(slaveSequences, list | tuple):
                 raise TypeError(
                     "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
                 )
             else:
-                if all(isinstance(x, sequence.slaveSequence) for x in slaveSequence):
-                    self.slaveSequences += slaveSequence
+                if all(isinstance(x, slaveSequence) for x in slaveSequences):
+                    self.slaveSequences += slaveSequences
                 else:
                     raise TypeError(
                         "slaveSequence should be sequence.slaveSequence or list,tuple of sequence.slaveSequence"
                     )
-        self.processed = False
 
     def create_slave(
         self,
@@ -181,24 +186,24 @@ class masterSequence(sequence, util.painter):
         # Check if name is given
         if name is None:
             # If name is not given, set name to "Sequence #(number)"
-            name = f"Sequence # {len(self.sequences)+1}"
+            name = f"Sequence # {len(self.slaveSequences)+1}"
         else:
             name = name
 
         match types:
             case "DO":
-                update_period = self.settings.DO.DO_FIFO_UPDATE_PERIOD
+                update_period = self.params.DO.DO_FIFO_UPDATE_PERIOD
             case "DI":
                 update_period = NotImplementedError
             case "AO":
-                update_period = self.settings.AO.AO_UPDATE_PERIOD
+                update_period = self.params.AO.AO_UPDATE_PERIOD
             case "AI":
-                update_period = self.settings.AI.AI_UPDATE_PERIOD
+                update_period = self.params.AI.AI_UPDATE_PERIOD
             case _:
                 raise ValueError(f"Invalid type {types}")
 
         # Create sequence object by type
-        sequence_obj = sequence.slaveSequence(
+        sequence_obj = slaveSequence(
             name=name,
             duration=self.duration,
             update_period=update_period,
