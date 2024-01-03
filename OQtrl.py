@@ -2,6 +2,8 @@ import numpy as np
 import ADwin as aw
 import OQtrl_params as params
 import OQtrl_utils as util
+from bitarray import bitarray
+from bisect import bisect_left
 from OQtrl_descriptors import cond_real, OneOf, bit_string
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -270,33 +272,80 @@ class masterSequenceSlots:
 
 
 class seqTransltaor:
-    pass
+    def _do(self, do_slaves: List[slaveSequence]):
+        # Collect all unique times efficiently using a set comprehension.
+        times = {time for slave in do_slaves for state, time in slave.pattern.pattern}
+
+        # Iterate through slaves and insert missing times.
+        for slave in do_slaves:
+            slave_times = [time for state, time in slave.pattern.pattern]
+            missing_times = set(times) - set(slave_times)
+
+            for time in missing_times:
+                insertion_index = bisect_left(slave_times, time)
+                state = slave.pattern.pattern[insertion_index - 1][0]
+                slave.pattern.pattern.insert(insertion_index, (state, time))
+
+        # State pattern translation
+        max_channel = max([slave.channel for slave in do_slaves])
+        states = []
+
+        for time in times:
+            bit_pattern = bitarray(max_channel + 1)
+            bit_pattern.setall(0)  # Set all bits to 0
+
+            for slave in do_slaves:
+                state = [state for state, t in slave.pattern.pattern if t == time]
+                if state:
+                    bit_pattern[-slave.channel - 1] = state[0]
+            states.append(int(bit_pattern.to01(), base=2))
+
+        # Time pattern translation
+        times = [int(time / DO_UNIT_TIME) for time in times]
+
+        # Create final pattern
+        final_pattern = util.seqTool.master.digout_fifo_pattern(states, times)
+
+        return final_pattern
+
+    def _ao(self):
+        raise NotImplementedError
 
 
 class parTranslator:
-    pass
+    def _do(self):
+        raise NotImplementedError
+
+    def _ao(self):
+        raise NotImplementedError
 
 
 class translator(masterSequenceSlots, seqTransltaor, parTranslator):
-    def __init__(self, *master_sequences: List[masterSequence]):
+    def __init__(
+        self,
+        mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"],
+        master_sequences: List[masterSequence],
+        adwin_process=None,
+    ):
         super().__init__()
-        for master in master_sequences:
-            self.master_slot.append(master)
+
+        self.master_sequences = master_sequences
 
     def translate(self):
-        for master in self.master_slot:
-            for slave in master.slave_sequences.values():
-                match slave.types:
-                    case "DO":
-                        raise NotImplementedError
-                    case "DI":
-                        raise NotImplementedError
-                    case "AO":
-                        raise NotImplementedError
-                    case "AI":
-                        raise NotImplementedError
-                    case _:
-                        raise ValueError(f"Invalid type {slave.types}")
+        for master in self.master_sequences:
+            sorting = {}
+            sorting["DO"].append(
+                [x for x in master.slave_sequences.values() if x.types == "DO"]
+            )
+            sorting["DI"].append(
+                [x for x in master.slave_sequences.values() if x.types == "DI"]
+            )
+            sorting["AO"].append(
+                [x for x in master.slave_sequences.values() if x.types == "AO"]
+            )
+            sorting["AI"].append(
+                [x for x in master.slave_sequences.values() if x.types == "AI"]
+            )
 
 
 def translate_DO(self):
