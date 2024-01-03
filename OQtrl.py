@@ -320,7 +320,7 @@ class parTranslator:
         raise NotImplementedError
 
 
-class translator(masterSequenceSlots, seqTransltaor, parTranslator):
+class translator(masterSequenceSlots, params.adwinParams, seqTransltaor, parTranslator):
     def __init__(
         self,
         mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"],
@@ -328,7 +328,7 @@ class translator(masterSequenceSlots, seqTransltaor, parTranslator):
         adwin_process=None,
     ):
         super().__init__()
-
+        self._adwinParams__init__()
         self.master_sequences = master_sequences
 
     def translate(self):
@@ -346,26 +346,6 @@ class translator(masterSequenceSlots, seqTransltaor, parTranslator):
             sorting["AI"].append(
                 [x for x in master.slave_sequences.values() if x.types == "AI"]
             )
-
-
-def translate_DO(self):
-    update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
-    tot_channels = set(np.arange(0, max(self._do_chs) + 1))
-    empty_channels = list(tot_channels - self._do_chs)
-    for ch in empty_channels:
-        self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
-        self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
-    self._do.sort()
-
-    do_patterns = [x.pattern for x in self._do]
-    do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
-    time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
-    final_do_pattern = util.seqTool.master.digout_fifo_pattern(
-        do_patterns, time_patterns
-    )
-
-    self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
-    self.__translatedSlaves["DO"] = final_do_pattern
 
 
 def translate_AO(self):
@@ -443,18 +423,22 @@ def translate_AO(self):
     self.processed_result["AO"] = result
 
 
-class sequenceManager:
+class sequenceManager(dict):
     def __init__(self) -> None:
-        self.masterSequences: Dict[sequence.masterSequence] = dict()
+        super().__init__()
 
-    def __setitem__(self, key, value):
-        if isinstance(value, sequence.project):
-            return self.masterSequences[key] == value
-        else:
-            raise TypeError("value should be sequence.project")
+    def __len__(self):
+        return len(self.__master_sequences)
 
-    def __getitem__(self, key):
-        return self.masterSequences[key]
+    def __repr__(self):
+        return f"{self.__master_sequences}"
+
+    def append(self, master_sequence: masterSequence):
+        self.__master_sequences[len(self)] = master_sequence
+
+    def values(self):
+        super().values()
+        return list(self.values)
 
 
 class deviceManager:
@@ -481,152 +465,7 @@ class validator:
     pass
 
 
-class manager(sequenceManager, deviceManager, translator, validator):
-    def __init__(self, boot=True, deviceno=1) -> None:
-        super().__init__()
-        super().__init__(boot=boot, deviceno=deviceno)
-        super().__init__()
-
-    def start(self, project: str = None, **kwargs):
-        # If ADwin is not booted, boot ADwin
-        if not self.__boot_status:
-            self.boot()
-
-        # Check if proj_key is given
-        if project is None:
-            raise ValueError("proj_key is not defined")
-        else:
-            # Check if proj_key is valid
-            if project not in self.__projects.keys():
-                raise ValueError(f"Project should be one of {self.__projects.keys()}")
-
-        proj = self.__projects[project]
-        mode = proj.mode
-
-        match mode:
-            # SINGLE MODE NOT IMPLEMENTED in this version
-            case "SINGLE":
-                if kwargs.get("master_idx", None) is None:
-                    raise ValueError("master_idx should be given for SINGLE mode")
-                else:
-                    master_idx = kwargs.get("master_idx", None)
-
-                proc_dir = AD_PROCESS_DIR["SINGLE_MODE"]
-                self.__device.Load_Process(proc_dir)
-                # self.__device.Start_Process(1)
-
-            case "CONTINUOUS":
-                proc_dir = AD_PROCESS_DIR["CONTINUOUS_MODE"]
-                idx = kwargs.get("master_idx", 0)
-                ad_set, ma_set = proj._return_settings(idx)
-
-                self.__device.Load_Process(proc_dir)
-                # Set parameters to adwin
-                self.__set_params(ad_set, ma_set, proj[idx])
-                self.__device.Set_Processdelay(1, ad_set.GENERAL.PROCESS_DELAY)
-                self.__device.Start_Process(1)
-
-            # SERIES MODE NOT IMPLEMENTED in this version
-            case "SERIES":
-                proc_dir = AD_PROCESS_DIR["SERIES_MODE"]
-            case _:
-                raise ValueError(f"Invalid mode {mode}")
-
-    def stop(self):
-        self.__device.Stop_Process(1)
-
-    def __set_params(self, ad_set, ma_set, data):
-        assigner = params.settingAssigner(ad_set, ma_set)
-        assigner.assign()
-        fin_ad_set = assigner.adw
-
-        for option, value in fin_ad_set.show_options().items():
-            if option in fin_ad_set.show_params().keys():
-                par_num = fin_ad_set.show_params()[option]
-
-                # For bitstring, convert bitstring to integer
-                if isinstance(value, str):
-                    value = int(value, 2)
-
-                # print(par_num, value)
-                self.__device.Set_Par(par_num, value)
-
-        for types, values in data.items():
-            if values is not None:
-                match types:
-                    case "DO":
-                        dat_num = fin_ad_set._assigned().GLOBAL_DATAS.DO_FIFO_PATTERN
-                        # print(par_num, values)
-                        self.__device.SetData_Long(
-                            values, dat_num, Startindex=1, Count=len(values)
-                        )
-                    case "AO":
-                        dat_num = fin_ad_set._assigned().GLOBAL_DATAS.AO
-                        # print(par_num, values)
-                        self.__device.SetData_Long(
-                            values, dat_num, Startindex=1, Count=len(values)
-                        )
-
-    @property
-    def deviceno(self):
-        return print(self.__DeviceNo)
-
-    @property
-    def processor_type(self):
-        return print(self.__ProceesorType)
-
-    @property
-    def process_delay(self):
-        return self.__device.Get_Processdelay(1)
-
-    def show_params_status(
-        self, number: int = None, option: str = None, all=True
-    ) -> dict or str:
-        """return parameters that are now set in ADwin device.
-
-        Args:
-            number (int, optional): if specific parameter number is given, return specific parameter. Defaults to None.
-            option (str, optional): if specific parameter option is given, return specific parameter. Defaults to None.
-            all (bool, optional): if True, return all parameters. Defaults to True.
-
-        Returns:
-            dict or str: dictionary of parameters
-        """
-        # temporal dictionary for parameters
-        temp_params_dict = {}
-
-        # If all is True, return all parameters
-        if all:
-            adwin_params = self.__device.Get_Par_All()
-            for (
-                option,
-                params,
-            ) in params.adwinSetting._assigned().PARAMS.__dict__.items():
-                temp_params_dict[option] = adwin_params[params - 1]
-            return temp_params_dict
-
-        # If all is False, return specific parameter
-        else:
-            if number is not None and option is None:
-                adwin_params = self.__device.Get_Par(number)
-                option = [
-                    options
-                    for options, params in params.adwinSetting._assigned().PARAMS.__dict__.items()
-                    if params == number
-                ][0]
-                return f"{option}:{adwin_params}"
-
-            elif number is None and option is not None:
-                par_num = params.adwinSetting._assigned().PARAMS.__dict__.get(
-                    "DIO_CH_CONFIG"
-                )
-                return f"option: {self.__device.Get_Par(par_num)}"
-
-    def show_adwin_status(self):
-        return self.__device.Process_Status(1)
-
-    def show_process_delay(self):
-        return self.__device.Get_Processdelay(1)
-
-    def set_process_delay(self, delay: int):
-        self.__device.Set_Processdelay(1, delay)
+class manager(translator, validator):
+    def __init__(self, mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"]):
+        self.device_manager = deviceManager()
+        self.sequence_manager = sequenceManager()
