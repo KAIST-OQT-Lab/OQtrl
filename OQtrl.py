@@ -264,99 +264,134 @@ class masterSequence(masterProperties, util.painter):
         show()
 
 
-class translator:
-    def translate_DO(self):
-        update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
-        tot_channels = set(np.arange(0, max(self._do_chs) + 1))
-        empty_channels = list(tot_channels - self._do_chs)
-        for ch in empty_channels:
-            self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
-            self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
-        self._do.sort()
+@dataclass
+class masterSequenceSlots:
+    masters_slot: List[masterSequence] = field(default_factory=list)
 
-        do_patterns = [x.pattern for x in self._do]
-        do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
-        time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
-        final_do_pattern = util.seqTool.master.digout_fifo_pattern(
-            do_patterns, time_patterns
-        )
 
-        self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
-        self.__translatedSlaves["DO"] = final_do_pattern
+class seqTransltaor:
+    pass
 
-    def translate_AO(self):
-        update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
-        duration = float(self.settings.GENERAL.duration)
-        # Find empty channels
-        tot_channels = set(np.arange(1, 9))
-        empty_channels = list(tot_channels - self.AO_chs)
-        dump_pattern = slaveSequence.pattern(
-            "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
-        )
-        dump_slaves = [
-            sequence.slaveSequence(
-                types="AO",
-                duration=duration,
-                update_period=update_period,
-                channel=ch,
-                pattern=dump_pattern,
-            )
-            for ch in empty_channels
-        ]
-        self.AO_slaves += dump_slaves
-        # Sort by channels [8,7,6,...,2,1]
-        self.AO_slaves.sort()
-        # Pattern digitize to 16bit
-        AOs = [x.pattern._data for x in self.AO_slaves]
-        digitized_AOs = [
-            np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
-        ]
-        bitpattern_AOs = []
-        for x in digitized_AOs:
-            bitpattern = [f"{val:016b}" for val in x]
-            bitpattern_AOs.append(bitpattern)
-        print(len(bitpattern_AOs))
-        # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
-        onetwo = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-1], bitpattern_AOs[-2]]
-        )
-        threefour = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-3], bitpattern_AOs[-4]]
-        )
-        fivesix = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-5], bitpattern_AOs[-6]]
-        )
-        seveneight = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-7], bitpattern_AOs[-8]]
-        )
 
-        # converted
-        converted = []
-        for i in range(len(onetwo)):
-            if i % 4 == 0:
-                try:
-                    converted.append(int(onetwo.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 1:
-                try:
-                    converted.append(int(threefour.pop(0, base=2)))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 2:
-                try:
-                    converted.append(int(fivesix.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 3:
-                try:
-                    converted.append(int(seveneight.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-        print(converted)
-        result = miscs.create_int_values_C(converted)
+class parTranslator:
+    pass
 
-        self.processed_result["AO"] = result
+
+class translator(masterSequenceSlots, seqTransltaor, parTranslator):
+    def __init__(self, *master_sequences: List[masterSequence]):
+        super().__init__()
+        for master in master_sequences:
+            self.master_slot.append(master)
+
+    def translate(self):
+        for master in self.master_slot:
+            for slave in master.slave_sequences.values():
+                match slave.types:
+                    case "DO":
+                        raise NotImplementedError
+                    case "DI":
+                        raise NotImplementedError
+                    case "AO":
+                        raise NotImplementedError
+                    case "AI":
+                        raise NotImplementedError
+                    case _:
+                        raise ValueError(f"Invalid type {slave.types}")
+
+
+def translate_DO(self):
+    update_period = self.settings.DO.DO_UPDATE_PERIOD / DO_UNIT_TIME
+    tot_channels = set(np.arange(0, max(self._do_chs) + 1))
+    empty_channels = list(tot_channels - self._do_chs)
+    for ch in empty_channels:
+        self.create_slave(types="DO", ch=ch, name=f"Dump_DO{ch}")
+        self[f"Dump_DO{ch}"].pattern = "0" * len(self._do[0].pattern)
+    self._do.sort()
+
+    do_patterns = [x.pattern for x in self._do]
+    do_patterns = np.array([int(x, 2) for x in reduce(add, do_patterns)])
+    time_patterns = np.array([int(update_period)]).repeat(len(do_patterns))
+    final_do_pattern = util.seqTool.master.digout_fifo_pattern(
+        do_patterns, time_patterns
+    )
+
+    self.settings.DO.DO_FIFO_WRITE_COUNT = int(len(final_do_pattern) / 2)
+    self.__translatedSlaves["DO"] = final_do_pattern
+
+
+def translate_AO(self):
+    update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
+    duration = float(self.settings.GENERAL.duration)
+    # Find empty channels
+    tot_channels = set(np.arange(1, 9))
+    empty_channels = list(tot_channels - self.AO_chs)
+    dump_pattern = slaveSequence.pattern(
+        "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
+    )
+    dump_slaves = [
+        sequence.slaveSequence(
+            types="AO",
+            duration=duration,
+            update_period=update_period,
+            channel=ch,
+            pattern=dump_pattern,
+        )
+        for ch in empty_channels
+    ]
+    self.AO_slaves += dump_slaves
+    # Sort by channels [8,7,6,...,2,1]
+    self.AO_slaves.sort()
+    # Pattern digitize to 16bit
+    AOs = [x.pattern._data for x in self.AO_slaves]
+    digitized_AOs = [
+        np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
+    ]
+    bitpattern_AOs = []
+    for x in digitized_AOs:
+        bitpattern = [f"{val:016b}" for val in x]
+        bitpattern_AOs.append(bitpattern)
+    print(len(bitpattern_AOs))
+    # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
+    onetwo = miscs.digital.DO_FIFO.add_string_lists(
+        [bitpattern_AOs[-1], bitpattern_AOs[-2]]
+    )
+    threefour = miscs.digital.DO_FIFO.add_string_lists(
+        [bitpattern_AOs[-3], bitpattern_AOs[-4]]
+    )
+    fivesix = miscs.digital.DO_FIFO.add_string_lists(
+        [bitpattern_AOs[-5], bitpattern_AOs[-6]]
+    )
+    seveneight = miscs.digital.DO_FIFO.add_string_lists(
+        [bitpattern_AOs[-7], bitpattern_AOs[-8]]
+    )
+
+    # converted
+    converted = []
+    for i in range(len(onetwo)):
+        if i % 4 == 0:
+            try:
+                converted.append(int(onetwo.pop(0), base=2))
+            except TypeError:
+                converted.append(0)
+        elif i % 4 == 1:
+            try:
+                converted.append(int(threefour.pop(0, base=2)))
+            except TypeError:
+                converted.append(0)
+        elif i % 4 == 2:
+            try:
+                converted.append(int(fivesix.pop(0), base=2))
+            except TypeError:
+                converted.append(0)
+        elif i % 4 == 3:
+            try:
+                converted.append(int(seveneight.pop(0), base=2))
+            except TypeError:
+                converted.append(0)
+    print(converted)
+    result = miscs.create_int_values_C(converted)
+
+    self.processed_result["AO"] = result
 
 
 class sequenceManager:
