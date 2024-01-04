@@ -269,18 +269,21 @@ class masterSequence(masterProperties, util.painter):
 class seqTransltaor(util.univTool):
     def do(self, do_slaves: List[slaveSequence]):
         # Collect all unique times efficiently using a set comprehension.
-        times = {time for slave in do_slaves for state, time in slave.pattern.pattern}
+        times = sorted(
+            {time for slave in do_slaves for state, time in slave.pattern.pattern}
+        )
 
         # Iterate through slaves and insert missing times.
         for slave in do_slaves:
             slave_times = [time for state, time in slave.pattern.pattern]
-            missing_times = set(times) - set(slave_times)
-
+            missing_times = sorted(set(times) - set(slave_times))
             for time in missing_times:
                 insertion_index = bisect_left(slave_times, time)
-                state = slave.pattern.pattern[insertion_index - 1][0]
+                if insertion_index == 0:
+                    state = False
+                else:
+                    state = slave.pattern.pattern[insertion_index - 1][0]
                 slave.pattern.pattern.insert(insertion_index, (state, time))
-
         # State pattern translation
         max_channel = max([slave.channel for slave in do_slaves])
         states = []
@@ -466,9 +469,7 @@ class translator(seqTransltaor, parTranslator):
 
         # Digital Output
         ##Channel pattern
-        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = (
-            self.do_ch_pattern()
-        )
+        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = self.do_ch_pattern()
         ## Output sequence pattern
         translated_digout_seq = self.do(self._do_slvs)
         self.adw_params.dig_out_datas.DO_FIFO_PATTERN = translated_digout_seq
@@ -530,13 +531,14 @@ class deviceManager:
 
         for option_name, value in adwin_params.as_dict().items():
             if option_name in num_params:
-                self.__adwin.Set_Par(Index=num_params[option_name], 
-                                     Value=value)
-            elif option_name in num_datas:              
-                self.__adwin.SetData_Long(Data = value,
-                                          DataNo =num_datas[option_name],
-                                          Startindex= 1,
-                                          Count=len(value))
+                self.__adwin.Set_Par(Index=num_params[option_name], Value=value)
+            elif option_name in num_datas:
+                self.__adwin.SetData_Long(
+                    Data=value,
+                    DataNo=num_datas[option_name],
+                    Startindex=1,
+                    Count=len(value),
+                )
             else:
                 pass
 
@@ -546,7 +548,7 @@ class deviceManager:
     def stop_process(self, process_no: int):
         self.__adwin.Stop_Process(process_no)
 
-    def get_status(self,process_no:int):
+    def get_status(self, process_no: int):
         status = self.__adwin.Process_Status(process_no)
         match status:
             case 0:
@@ -555,14 +557,16 @@ class deviceManager:
                 print("Process is running")
             case _:
                 print("Process is being stopped")
-        return 
+        return
 
     def get_data(self, data_no: int, start_idx, count):
         return np.array(self.__adwin.GetData_Long(data_no, start_idx, count))
 
+
 class validator:
     def __init__():
         return NotImplementedError
+
 
 class manager:
     def __init__(self, **kwargs):
@@ -601,5 +605,3 @@ class manager:
 
     def get_status(self):
         self.device_manager.status(self.process_no)
-
-    
