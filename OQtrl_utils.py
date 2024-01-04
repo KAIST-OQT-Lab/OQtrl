@@ -267,7 +267,8 @@ class univTool:
         Returns:
             ctypes.c_int32: ctypes.c_int32
         """
-        return ctypes.c_int32(*array)
+        
+        return (ctypes.c_int32*len(array))(*array)
 
     @staticmethod
     def conv2C_float(array) -> ctypes.c_float:
@@ -279,4 +280,4 @@ class univTool:
         Returns:
             ctypes.c_float: ctypes.c_float
         """
-        return ctypes.c_float(*array)
+        return (ctypes.c_float*len(array))(*array)
