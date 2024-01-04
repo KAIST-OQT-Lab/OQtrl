@@ -313,7 +313,7 @@ class seqTransltaor(util.univTool):
             "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
         )
         dump_slaves = [
-            sequence.slaveSequence(
+            slaveSequence(
                 types="AO",
                 duration=duration,
                 update_period=update_period,
@@ -391,7 +391,7 @@ class parTranslator(util.univTool):
     def do_ch_pattern(self):
         ch_pattern = bitarray(32)
         ch_pattern.setall(False)
-        for ch in self.do_chs:
+        for ch in self._do_chs:
             ch_pattern[-ch - 1] = True
 
         return ch_pattern.to01()
@@ -401,7 +401,7 @@ class parTranslator(util.univTool):
         # Find max channel number and set bit to 1
         ch_config = bitarray(4)
         ch_config.setall(False)
-        max_ch = max(self.do_chs)
+        max_ch = max(self._do_chs)
 
         if max_ch < 8:
             ch_config[0] = True
@@ -419,13 +419,8 @@ class parTranslator(util.univTool):
 
 
 class translator(seqTransltaor, parTranslator):
-    def __init__(
-        self,
-        master_sequence: masterSequence = None,
-        mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"] = "CONTINUOUS",
-        adwin_process=None,
-    ):
-        self.master_sequence = master_sequence
+    def __init__(self):
+        self.master_sequence = None
         self.adw_params = params.adwinParams()
 
     def sort_slaves(self, master_sequence: masterSequence):
@@ -460,11 +455,11 @@ class translator(seqTransltaor, parTranslator):
         self.sort_slaves(self.master_sequence)
         # General
         ## Channel configuration
-        self.adw_params.dig_out_params.DO_FIFO_CH_CONFIGURATION = (
-            self._parTranslator__do_ch_configuration()
+        self.adw_params.generalParams.DO_FIFO_CH_CONFIGURATION = (
+            self.do_ch_configuration()
         )
         ## Duration
-        self.adw_params.general_params.DURATION = int(
+        self.adw_params.generalParams.DURATION = int(
             self.master_sequence.duration / DO_UNIT_TIME
         )
         # * Experiment mode --> Not implemented yet
@@ -472,10 +467,10 @@ class translator(seqTransltaor, parTranslator):
         # Digital Output
         ##Channel pattern
         self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = (
-            self._parTranslator__do_ch_pattern()
+            self.do_ch_pattern()
         )
         ## Output sequence pattern
-        translated_digout_seq = self._seqTranslator__do(self._do_slvs)
+        translated_digout_seq = self.do(self._do_slvs)
         self.adw_params.dig_out_datas.DO_FIFO_PATTERN = translated_digout_seq
         ## FIFO WRITE COUNT = LENGTH OF TRANSLATED DIGOUT SEQUENCE
         self.adw_params.dig_out_params.DO_FIFO_WRITE_COUNT = (
@@ -565,15 +560,16 @@ class manager:
     def boot(self):
         self.device_manager.boot()
 
-    def translate(self, target):
-        for master_sequence in target:
+    def translate(self):
+        for master_sequence in self.sequence_manager.values():
             self.process_no = self.device_manager.load_process(self.mode)
-            trns = translator(master_sequence, self.mode)
+            trns = translator()
+            trns.master_sequence = master_sequence
             trns.translate()
             self.device_manager.set_params(trns.adw_params, self.process_no)
 
     def start(self):
         # Translate by mode
-        self.translate(self.sequence_manager.values())
+        self.translate()
         # Start Process
         self.device_manager.Start_Process(self.process_no)
