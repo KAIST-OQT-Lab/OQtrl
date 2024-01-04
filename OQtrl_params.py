@@ -43,7 +43,7 @@ class generalParams:
         EXPERIMENT_MODE: int = None
     """
 
-    DIO_CH_CONFIG: bit_string = bit_string(maxsize=32)
+    DIO_CH_CONFIG: bit_string = bit_string("0001", maxsize=4)
     DURATION: int = None
     EXPERIMENT_MODE: int = None
 
@@ -102,10 +102,10 @@ class anaOutParams:
     """Analog output settings class
 
     Attributes:
-        AO_UPDATE_PERIOD = None
+        AO_UPDATE_PERIOD = defaults to 3000
     """
 
-    AO_UPDATE_PERIOD: int = None
+    AO_UPDATE_PERIOD: int = 3000
 
     def as_dict(self):
         return asdict(self)
@@ -138,9 +138,9 @@ class anaInParams:
         AI_BURST_TRIGGER_MODE = None
     """
 
-    AI_AVG_MODE: int = None
-    AI_UPDATE_PERIOD: int = None
-    AI_BURST_CLOCK_RATE: int = None
+    AI_AVG_MODE: int = 0
+    AI_UPDATE_PERIOD: int = 1
+    AI_BURST_CLOCK_RATE: int = 20000
     AI_BURST_CHANNELS: int = None
     AI_BURST_BUFFER_SIZE: int = None
     AI_BURST_TRIGGER_MODE: int = None

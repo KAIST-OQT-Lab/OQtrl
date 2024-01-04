@@ -458,20 +458,33 @@ class translator(seqTransltaor, parTranslator):
     def translate(self):
         # Sorting
         self.sort_slaves(self.master_sequence)
-        # Digital Oupput
-        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = (
-            self._parTranslator__do_ch_pattern()
-        )
+        # General
+        ## Channel configuration
         self.adw_params.dig_out_params.DO_FIFO_CH_CONFIGURATION = (
             self._parTranslator__do_ch_configuration()
         )
+        ## Duration
+        self.adw_params.general_params.DURATION = int(
+            self.master_sequence.duration / DO_UNIT_TIME
+        )
+        # * Experiment mode --> Not implemented yet
+
+        # Digital Output
+        ##Channel pattern
+        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = (
+            self._parTranslator__do_ch_pattern()
+        )
+        ## Output sequence pattern
         translated_digout_seq = self._seqTranslator__do(self._do_slvs)
         self.adw_params.dig_out_datas.DO_FIFO_PATTERN = translated_digout_seq
+        ## FIFO WRITE COUNT = LENGTH OF TRANSLATED DIGOUT SEQUENCE
         self.adw_params.dig_out_params.DO_FIFO_WRITE_COUNT = (
             len(translated_digout_seq) // 2
         )
+        ## FIFO WRITE STARTING INDEX = 1
         self.adw_params.dig_out_params.DO_FIFO_WRITE_STARTING_INDEX = 1
-        # Analog Output
+
+        # * Analog Output --> Not implmented yet.
 
 
 class sequenceManager(dict):
@@ -530,7 +543,8 @@ class deviceManager:
 
 
 class validator:
-    pass
+    def __init__():
+        return NotImplementedError
 
 
 class manager:
