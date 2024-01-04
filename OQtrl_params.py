@@ -118,9 +118,9 @@ class anaOutDatas:
     Attributes:
         AO_PATTERN: c_uint32 = None
     """
-
-    AO_PATTERN: c_uint32 = None
-
+    #TODO:
+    #AO_PATTERN: c_uint32 = None
+     
     def as_dict(self):
         return asdict(self)
 

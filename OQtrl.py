@@ -528,19 +528,38 @@ class deviceManager:
         num_datas = params.dataReferNum().as_dict()
         # For given adwin parameter key, find corresponding adwin parameter number and set value
 
-        for key, value in adwin_params.as_dict().items():
-            if key in num_params:
-                self.__adwin.Set_Par(num_params[key], value)
-            elif key in num_datas:
-                self.__adwin.Set_Data(num_datas[key], value)
+        for option_name, value in adwin_params.as_dict().items():
+            if option_name in num_params:
+                self.__adwin.Set_Par(Index=num_params[option_name], 
+                                     Value=value)
+            elif option_name in num_datas:              
+                self.__adwin.SetData_Long(Data = value,
+                                          DataNo =num_datas[option_name],
+                                          Startindex= 1,
+                                          Count=len(value))
             else:
-                raise ValueError(f"Invalid key {key}")
+                pass
 
+    def start_process(self, process_no: int):
+        self.__adwin.Start_Process(process_no)
+
+    def stop_process(self, process_no: int):
+        self.__adwin.Stop_Process(process_no)
+
+    def get_status(self,process_no:int):
+        status = self.__adwin.Process_Status(process_no)
+        match status:
+            case 0:
+                print("Process is not running")
+            case 1:
+                print("Process is running")
+            case _:
+                print("Process is being stopped")
+        return 
 
 class validator:
     def __init__():
         return NotImplementedError
-
 
 class manager:
     def __init__(self, **kwargs):
@@ -572,4 +591,12 @@ class manager:
         # Translate by mode
         self.translate()
         # Start Process
-        self.device_manager.Start_Process(self.process_no)
+        self.device_manager.start_process(self.process_no)
+
+    def stop(self):
+        self.device_manager.stop_process(self.process_no)
+
+    def get_status(self):
+        self.device_manager.status(self.process_no)
+
+    
