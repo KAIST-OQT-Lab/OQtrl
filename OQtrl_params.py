@@ -34,6 +34,24 @@ class plotParams:
 
 
 @dataclass(init=True)
+class generalParams:
+    """General settings class
+
+    Attributes:
+        DIO_CH_CONFIG: bit_string = bit_string(maxsize=32)
+        DURATION: int = None
+        EXPERIMENT_MODE: int = None
+    """
+
+    DIO_CH_CONFIG: bit_string = bit_string(maxsize=32)
+    DURATION: int = None
+    EXPERIMENT_MODE: int = None
+
+    def as_dict(self):
+        return asdict(self)
+
+
+@dataclass(init=True)
 class digOutParams:
     """Digital output settings class
 
@@ -199,6 +217,7 @@ class dataReferNum:
 
 class adwinParams:
     def __init__(self):
+        self.generalParams = generalParams()
         self.dig_out_params = digOutParams()
         self.dig_out_datas = digOutDatas()
 
@@ -212,6 +231,7 @@ class adwinParams:
     def as_dict(self):
         # As_dict each attribute and then combine them into a single dictionary.
         return {
+            **self.generalParams.as_dict(),
             **self.dig_out_params.as_dict(),
             **self.dig_out_datas.as_dict(),
             **self.dig_in_params.as_dict(),

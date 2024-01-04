@@ -267,7 +267,7 @@ class masterSequence(masterProperties, util.painter):
 
 
 class seqTransltaor(util.univTool):
-    def _do(self, do_slaves: List[slaveSequence]):
+    def do(self, do_slaves: List[slaveSequence]):
         # Collect all unique times efficiently using a set comprehension.
         times = {time for slave in do_slaves for state, time in slave.pattern.pattern}
 
@@ -303,7 +303,7 @@ class seqTransltaor(util.univTool):
 
         return self.conv2C_int(final_pattern)
 
-    def _ao(self):
+    def ao(self):
         update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
         duration = float(self.settings.GENERAL.duration)
         # Find empty channels
@@ -388,7 +388,7 @@ class seqTransltaor(util.univTool):
 
 
 class parTranslator(util.univTool):
-    def _do_ch_pattern(self):
+    def do_ch_pattern(self):
         ch_pattern = bitarray(32)
         ch_pattern.setall(False)
         for ch in self.do_chs:
@@ -396,7 +396,25 @@ class parTranslator(util.univTool):
 
         return ch_pattern.to01()
 
-    def _ao(self):
+    def do_ch_configuration(self):
+        # each bit corresponds to 0-7, 8-15, 16-23, 24-31 channels.
+        # Find max channel number and set bit to 1
+        ch_config = bitarray(4)
+        ch_config.setall(False)
+        max_ch = max(self.do_chs)
+
+        if max_ch < 8:
+            ch_config[0] = True
+        elif max_ch < 16:
+            ch_config[1] = True
+        elif max_ch < 24:
+            ch_config[2] = True
+        elif max_ch < 32:
+            ch_config[3] = True
+
+        return ch_config.to01()
+
+    def ao(self):
         raise NotImplementedError
 
 
@@ -441,11 +459,16 @@ class translator(seqTransltaor, parTranslator):
         # Sorting
         self.sort_slaves(self.master_sequence)
         # Digital Oupput
-        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = self._do_ch_pattern()
+        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = (
+            self._parTranslator__do_ch_pattern()
+        )
+        self.adw_params.dig_out_params.DO_FIFO_CH_CONFIGURATION = (
+            self._parTranslator__do_ch_configuration()
+        )
         translated_digout_seq = self._seqTranslator__do(self._do_slvs)
         self.adw_params.dig_out_datas.DO_FIFO_PATTERN = translated_digout_seq
-        self.adw_params.dig_out_params.DO_FIFO_WRITE_COUNT = len(
-            translated_digout_seq // 2
+        self.adw_params.dig_out_params.DO_FIFO_WRITE_COUNT = (
+            len(translated_digout_seq) // 2
         )
         self.adw_params.dig_out_params.DO_FIFO_WRITE_STARTING_INDEX = 1
         # Analog Output
