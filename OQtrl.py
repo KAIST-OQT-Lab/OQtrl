@@ -557,6 +557,9 @@ class deviceManager:
                 print("Process is being stopped")
         return 
 
+    def get_data(self, data_no: int, start_idx, count):
+        return np.array(self.__adwin.GetData_Long(data_no, start_idx, count))
+
 class validator:
     def __init__():
         return NotImplementedError
