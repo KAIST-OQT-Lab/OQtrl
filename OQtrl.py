@@ -266,12 +266,7 @@ class masterSequence(masterProperties, util.painter):
         show()
 
 
-@dataclass
-class masterSequenceSlots:
-    masters_slot: List[masterSequence] = field(default_factory=list)
-
-
-class seqTransltaor:
+class seqTransltaor(util.univTool):
     def _do(self, do_slaves: List[slaveSequence]):
         # Collect all unique times efficiently using a set comprehension.
         times = {time for slave in do_slaves for state, time in slave.pattern.pattern}
@@ -303,124 +298,160 @@ class seqTransltaor:
         # Time pattern translation
         times = [int(time / DO_UNIT_TIME) for time in times]
 
-        # Create final pattern
-        final_pattern = util.seqTool.master.digout_fifo_pattern(states, times)
+        # Translate to final pattern c_int_array(State,time)
+        final_pattern = self.generate_digout_fifo_pattern(states, times)
 
-        return final_pattern
+        return self.conv2C_int(final_pattern)
 
     def _ao(self):
-        raise NotImplementedError
+        update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
+        duration = float(self.settings.GENERAL.duration)
+        # Find empty channels
+        tot_channels = set(np.arange(1, 9))
+        empty_channels = list(tot_channels - self.AO_chs)
+        dump_pattern = slaveSequence.pattern(
+            "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
+        )
+        dump_slaves = [
+            sequence.slaveSequence(
+                types="AO",
+                duration=duration,
+                update_period=update_period,
+                channel=ch,
+                pattern=dump_pattern,
+            )
+            for ch in empty_channels
+        ]
+        self.AO_slaves += dump_slaves
+        # Sort by channels [8,7,6,...,2,1]
+        self.AO_slaves.sort()
+        # Pattern digitize to 16bit
+        AOs = [x.pattern._data for x in self.AO_slaves]
+        digitized_AOs = [
+            np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
+        ]
+        bitpattern_AOs = []
+        for x in digitized_AOs:
+            bitpattern = [f"{val:016b}" for val in x]
+            bitpattern_AOs.append(bitpattern)
+        print(len(bitpattern_AOs))
+        # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
+        onetwo = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-1], bitpattern_AOs[-2]]
+        )
+        threefour = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-3], bitpattern_AOs[-4]]
+        )
+        fivesix = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-5], bitpattern_AOs[-6]]
+        )
+        seveneight = miscs.digital.DO_FIFO.add_string_lists(
+            [bitpattern_AOs[-7], bitpattern_AOs[-8]]
+        )
+
+        # converted
+        converted = []
+        for i in range(len(onetwo)):
+            if i % 4 == 0:
+                try:
+                    converted.append(int(onetwo.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 1:
+                try:
+                    converted.append(int(threefour.pop(0, base=2)))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 2:
+                try:
+                    converted.append(int(fivesix.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+            elif i % 4 == 3:
+                try:
+                    converted.append(int(seveneight.pop(0), base=2))
+                except TypeError:
+                    converted.append(0)
+        print(converted)
+        result = miscs.create_int_values_C(converted)
+
+        return NotImplementedError
+
+    @staticmethod
+    def generate_digout_fifo_pattern(values, times):
+        k = np.array([0, 1])
+        n_values = np.kron(values, k[::-1])  # make [value,0,value,0,...]
+        n_times = np.kron(times, k)  # make [0,times,0,times,...]
+        pattern = n_values + n_times  # Merge [value, times, value, times, value, times]
+
+        return pattern
 
 
-class parTranslator:
+class parTranslator(util.univTool):
     def _do(self):
-        raise NotImplementedError
+        pass
+
+    def _do_ch_pattern(self):
+        ch_pattern = bitarray(32)
+        ch_pattern.setall(False)
+        for ch in self.do_chs:
+            ch_pattern[-ch - 1] = True
+
+        return ch_pattern.to01()
 
     def _ao(self):
         raise NotImplementedError
 
 
-class translator(masterSequenceSlots, params.adwinParams, seqTransltaor, parTranslator):
+class translator(seqTransltaor, parTranslator):
     def __init__(
         self,
-        mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"],
-        master_sequences: List[masterSequence],
+        master_sequence: masterSequence = None,
+        mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"] = "CONTINUOUS",
         adwin_process=None,
     ):
-        super().__init__()
-        self._adwinParams__init__()
-        self.master_sequences = master_sequences
+        self.master_sequence = master_sequence
+        self.adw_params = params.adwinParams()
+
+    def sort_slaves(self, master_sequence: masterSequence):
+        """Sorting slave sequences by type
+
+        Returns:
+            list: list of sorted master sequences
+        """
+        slaveSequences = list(master_sequence.slave_sequences.values())
+        DO_slaves = [digout for digout in slaveSequences if digout.types == "DO"]
+        AO_slaves = [anaout for anaout in slaveSequences if anaout.types == "AO"]
+        DI_slaves = [digin for digin in slaveSequences if digin.types == "DI"]
+        AI_slaves = [anain for anain in slaveSequences if anain.types == "AI"]
+
+        do_chs = set([int(x.channel) for x in DO_slaves])
+        ao_chs = set([int(x.channel) for x in AO_slaves])
+        di_chs = set([int(x.channel) for x in DI_slaves])
+        ai_chs = set([int(x.channel) for x in AI_slaves])
+
+        self._do_slvs = DO_slaves
+        self._ao_slvs = AO_slaves
+        self._di_slvs = DI_slaves
+        self._ai_slvs = AI_slaves
+
+        self._do_chs = do_chs
+        self._ao_chs = ao_chs
+        self._di_chs = di_chs
+        self._ai_chs = ai_chs
 
     def translate(self):
-        for master in self.master_sequences:
-            sorting = {}
-            sorting["DO"].append(
-                [x for x in master.slave_sequences.values() if x.types == "DO"]
-            )
-            sorting["DI"].append(
-                [x for x in master.slave_sequences.values() if x.types == "DI"]
-            )
-            sorting["AO"].append(
-                [x for x in master.slave_sequences.values() if x.types == "AO"]
-            )
-            sorting["AI"].append(
-                [x for x in master.slave_sequences.values() if x.types == "AI"]
-            )
-
-
-def translate_AO(self):
-    update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
-    duration = float(self.settings.GENERAL.duration)
-    # Find empty channels
-    tot_channels = set(np.arange(1, 9))
-    empty_channels = list(tot_channels - self.AO_chs)
-    dump_pattern = slaveSequence.pattern(
-        "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
-    )
-    dump_slaves = [
-        sequence.slaveSequence(
-            types="AO",
-            duration=duration,
-            update_period=update_period,
-            channel=ch,
-            pattern=dump_pattern,
+        # Sorting
+        self.sort_slaves(self.master_sequence)
+        # Digital Oupput
+        self.adw_params.dig_out_params.DO_FIFO_CH_PATTERN = self._do_ch_pattern()
+        translated_digout_seq = self._seqTranslator__do(self._do_slvs)
+        self.adw_params.dig_out_datas.DO_FIFO_PATTERN = translated_digout_seq
+        self.adw_params.dig_out_params.DO_FIFO_WRITE_COUNT = len(
+            translated_digout_seq // 2
         )
-        for ch in empty_channels
-    ]
-    self.AO_slaves += dump_slaves
-    # Sort by channels [8,7,6,...,2,1]
-    self.AO_slaves.sort()
-    # Pattern digitize to 16bit
-    AOs = [x.pattern._data for x in self.AO_slaves]
-    digitized_AOs = [
-        np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
-    ]
-    bitpattern_AOs = []
-    for x in digitized_AOs:
-        bitpattern = [f"{val:016b}" for val in x]
-        bitpattern_AOs.append(bitpattern)
-    print(len(bitpattern_AOs))
-    # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
-    onetwo = miscs.digital.DO_FIFO.add_string_lists(
-        [bitpattern_AOs[-1], bitpattern_AOs[-2]]
-    )
-    threefour = miscs.digital.DO_FIFO.add_string_lists(
-        [bitpattern_AOs[-3], bitpattern_AOs[-4]]
-    )
-    fivesix = miscs.digital.DO_FIFO.add_string_lists(
-        [bitpattern_AOs[-5], bitpattern_AOs[-6]]
-    )
-    seveneight = miscs.digital.DO_FIFO.add_string_lists(
-        [bitpattern_AOs[-7], bitpattern_AOs[-8]]
-    )
-
-    # converted
-    converted = []
-    for i in range(len(onetwo)):
-        if i % 4 == 0:
-            try:
-                converted.append(int(onetwo.pop(0), base=2))
-            except TypeError:
-                converted.append(0)
-        elif i % 4 == 1:
-            try:
-                converted.append(int(threefour.pop(0, base=2)))
-            except TypeError:
-                converted.append(0)
-        elif i % 4 == 2:
-            try:
-                converted.append(int(fivesix.pop(0), base=2))
-            except TypeError:
-                converted.append(0)
-        elif i % 4 == 3:
-            try:
-                converted.append(int(seveneight.pop(0), base=2))
-            except TypeError:
-                converted.append(0)
-    print(converted)
-    result = miscs.create_int_values_C(converted)
-
-    self.processed_result["AO"] = result
+        self.adw_params.dig_out_params.DO_FIFO_WRITE_STARTING_INDEX = 1
+        # Analog Output
 
 
 class sequenceManager(dict):
@@ -443,8 +474,8 @@ class sequenceManager(dict):
 
 class deviceManager:
     def __init__(self, boot=True, deviceno=1) -> None:
-        adwin = aw.ADwin(DeviceNo=deviceno, useNumpyArrays=True)
-        self.__device_adwin = adwin
+        self.__adwin = aw.ADwin(DeviceNo=deviceno, useNumpyArrays=True)
+
         # Boot ADwin-System
         if boot:
             self.boot()
@@ -452,20 +483,61 @@ class deviceManager:
             print("Adwin not booted, please boot manually")
 
     def boot(self):
-        BTL = self.__device.ADwindir + "ADwin" + PROCESSORTYPE + ".btl"
+        BTL = self.__adwin.ADwindir + "ADwin" + PROCESSORTYPE + ".btl"
         try:
-            self.__device.Boot(BTL)
-            self.__DeviceNo = self.__device.DeviceNo
-            self.__ProceesorType = self.__device.Processor_Type()
+            self.__adwin.Boot(BTL)
+            self.__adwinNo = self.__adwin.DeviceNo
+            self.__ProceesorType = self.__adwin.Processor_Type()
         except ValueError:
             raise ValueError("ADwin not connected")
+
+    def load_process(self, mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"]):
+        process_no = 1
+        if mode == "SINGLE":
+            self.__adwin.Load_Process(AD_PROCESS_DIR["SINGLE_MODE"])
+        elif mode == "CONTINUOUS":
+            self.__adwin.Load_Process(AD_PROCESS_DIR["CONTINUOUS_MODE"])
+        elif mode == "SWEEP":
+            raise NotImplementedError
+        return process_no
+
+    def set_params(self, adwin_params: params.adwinParams, process_no: int):
+        num_params = params.paramReferNum().as_dict()
+        num_datas = params.dataReferNum().as_dict()
+        # For given adwin parameter key, find corresponding adwin parameter number and set value
+
+        for key, value in adwin_params.as_dict().items():
+            if key in num_params:
+                self.__adwin.Set_Par(num_params[key], value)
+            elif key in num_datas:
+                self.__adwin.Set_Data(num_datas[key], value)
+            else:
+                raise ValueError(f"Invalid key {key}")
 
 
 class validator:
     pass
 
 
-class manager(translator, validator):
-    def __init__(self, mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"]):
-        self.device_manager = deviceManager()
+class manager:
+    def __init__(self, **kwargs):
+        boot = kwargs.get("boot", True)
+        deviceno = kwargs.get("deviceno", 1)
+
+        self.device_manager = deviceManager(boot, deviceno)
         self.sequence_manager = sequenceManager()
+
+    def set_mode(self, mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"]):
+        self.mode = mode
+
+    def append(self, master_sequence: masterSequence):
+        self.sequence_manager.append(master_sequence)
+
+    def boot(self):
+        self.device_manager.boot()
+
+    def translate(self, target):
+        for master_sequence in target:
+            self.process_no = self.device_manager.load_process(self.mode)
+            trns = translator(master_sequence, self.mode)
+            trns.translate()

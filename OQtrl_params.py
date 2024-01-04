@@ -44,15 +44,28 @@ class digOutParams:
     """
 
     DO_FIFO_CH_PATTERN: bit_string = bit_string(maxsize=32)
-    DO_FIFO_PATTERN: c_uint32 = None
     DO_FIFO_WRITE_COUNT: int = None
-    DO_FIFO_WRITE_STARTING_INDEX = None
+    DO_FIFO_WRITE_STARTING_INDEX: int = 1
 
     def as_dict(self):
         return asdict(self)
 
 
-@dataclass
+@dataclass(init=True)
+class digOutDatas:
+    """Digital output FIFO data
+
+    Attributes:
+        DO_FIFO_PATTERN: c_uint32 = None
+    """
+
+    DO_FIFO_PATTERN: c_uint32 = None
+
+    def as_dict(self):
+        return asdict(self)
+
+
+@dataclass(init=True)
 class digInParams:
     """Digital input settings class
 
@@ -66,7 +79,7 @@ class digInParams:
         return asdict(self)
 
 
-@dataclass
+@dataclass(init=True)
 class anaOutParams:
     """Analog output settings class
 
@@ -74,13 +87,27 @@ class anaOutParams:
         AO_UPDATE_PERIOD = None
     """
 
-    AO_UPDATE_PERIOD = None
+    AO_UPDATE_PERIOD: int = None
 
     def as_dict(self):
         return asdict(self)
 
 
-@dataclass
+@dataclass(init=True)
+class anaOutDatas:
+    """Analog output data
+
+    Attributes:
+        AO_PATTERN: c_uint32 = None
+    """
+
+    AO_PATTERN: c_uint32 = None
+
+    def as_dict(self):
+        return asdict(self)
+
+
+@dataclass(init=True)
 class anaInParams:
     """Analog input settings class
 
@@ -93,18 +120,18 @@ class anaInParams:
         AI_BURST_TRIGGER_MODE = None
     """
 
-    AI_AVG_MODE = None
-    AI_UPDATE_PERIOD = None
-    AI_BURST_CLOCK_RATE = None
-    AI_BURST_CHANNELS = None
-    AI_BURST_BUFFER_SIZE = None
-    AI_BURST_TRIGGER_MODE = None
+    AI_AVG_MODE: int = None
+    AI_UPDATE_PERIOD: int = None
+    AI_BURST_CLOCK_RATE: int = None
+    AI_BURST_CHANNELS: int = None
+    AI_BURST_BUFFER_SIZE: int = None
+    AI_BURST_TRIGGER_MODE: int = None
 
     def as_dict(self):
         return asdict(self)
 
 
-@dataclass(frozen=True)
+@dataclass(init=True, frozen=True)
 class paramReferNum:
     """Assigned parameters class
 
@@ -138,7 +165,7 @@ class paramReferNum:
         return asdict(self)
 
 
-@dataclass(frozen=True)
+@dataclass(init=True, frozen=True)
 class dataReferNum:
     """Assigned datas class
 
@@ -172,9 +199,23 @@ class dataReferNum:
 
 class adwinParams:
     def __init__(self):
-        self.refer_params = paramReferNum()
-        self.refer_datas = dataReferNum()
-        self.dig_out = digOutParams()
-        self.dig_in = digInParams()
-        self.ana_out = anaOutParams()
-        self.ana_in = anaInParams()
+        self.dig_out_params = digOutParams()
+        self.dig_out_datas = digOutDatas()
+
+        self.dig_in_params = digInParams()
+
+        self.ana_out_params = anaOutParams()
+        self.ana_out_datas = anaOutDatas()
+
+        self.ana_in_params = anaInParams()
+
+    def as_dict(self):
+        # As_dict each attribute and then combine them into a single dictionary.
+        return {
+            **self.dig_out_params.as_dict(),
+            **self.dig_out_datas.as_dict(),
+            **self.dig_in_params.as_dict(),
+            **self.ana_out_params.as_dict(),
+            **self.ana_out_datas.as_dict(),
+            **self.ana_in_params.as_dict(),
+        }
