@@ -372,8 +372,8 @@ class seqTransltaor(util.univTool):
                     converted.append(int(seveneight.pop(0), base=2))
                 except TypeError:
                     converted.append(0)
-        print(converted)
-        result = miscs.create_int_values_C(converted)
+
+        result = self.create_int_values_C(converted)
 
         return NotImplementedError
 
@@ -388,9 +388,6 @@ class seqTransltaor(util.univTool):
 
 
 class parTranslator(util.univTool):
-    def _do(self):
-        pass
-
     def _do_ch_pattern(self):
         ch_pattern = bitarray(32)
         ch_pattern.setall(False)
@@ -458,18 +455,12 @@ class sequenceManager(dict):
     def __init__(self) -> None:
         super().__init__()
 
-    def __len__(self):
-        return len(self.__master_sequences)
-
-    def __repr__(self):
-        return f"{self.__master_sequences}"
+    def __setitem__(self, __value) -> None:
+        __key = len(self)
+        return super().__setitem__(__key, __value)
 
     def append(self, master_sequence: masterSequence):
-        self.__master_sequences[len(self)] = master_sequence
-
-    def values(self):
-        super().values()
-        return list(self.values)
+        self.__setitem__(master_sequence)
 
 
 class deviceManager:
@@ -526,6 +517,7 @@ class manager:
 
         self.device_manager = deviceManager(boot, deviceno)
         self.sequence_manager = sequenceManager()
+        self.mode = "CONTINUOUS"
 
     def set_mode(self, mode: Literal["SINGLE", "CONTINUOUS", "SWEEP"]):
         self.mode = mode
@@ -541,3 +533,10 @@ class manager:
             self.process_no = self.device_manager.load_process(self.mode)
             trns = translator(master_sequence, self.mode)
             trns.translate()
+            self.device_manager.set_params(trns.adw_params, self.process_no)
+
+    def start(self):
+        # Translate by mode
+        self.translate(self.sequence_manager.values())
+        # Start Process
+        self.device_manager.Start_Process(self.process_no)
