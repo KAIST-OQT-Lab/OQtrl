@@ -84,7 +84,7 @@ class digitalPatternABS(util.univTool):
             self.__dict__[name] = []
         else:
             raise AttributeError(f"Invalid attribute {name}")
-        
+
     def insert(self, index, item):
         self.pattern.insert(index, item)
         self.pattern = sorted(self.pattern, key=lambda x: x[1])
@@ -283,13 +283,14 @@ class seqTransltaor(util.univTool):
             missing_times = sorted(set(times) - set(slave_times))
             for time in missing_times:
                 insertion_index = bisect_left(slave_times, time)
-                
+
                 if insertion_index == 0:
                     state = False
                 else:
-                    state = slave.pattern.pattern[insertion_index-1][0]
+                    state = slave.pattern.pattern[insertion_index - 1][0]
                 slave.pattern.insert(insertion_index, (state, time))
-                
+                slave_times.insert(insertion_index, time)
+
         # State pattern translation
         max_channel = max([slave.channel for slave in do_slaves])
         states = []
@@ -300,10 +301,10 @@ class seqTransltaor(util.univTool):
 
             for slave in do_slaves:
                 state = [state for state, t in slave.pattern.pattern if t == time]
-                #print(state)
+                # print(state)
                 if state:
                     bit_pattern[-slave.channel - 1] = state[0]
-            #print(bit_pattern)
+            # print(bit_pattern)
             states.append(int(bit_pattern.to01(), base=2))
 
         # Time pattern translation
@@ -466,9 +467,7 @@ class translator(seqTransltaor, parTranslator):
         self.sort_slaves(self.master_sequence)
         # General
         ## Channel configuration
-        self.adw_params.generalParams.DIO_CH_CONFIG = (
-            self.do_ch_configuration()
-        )
+        self.adw_params.generalParams.DIO_CH_CONFIG = self.do_ch_configuration()
         ## Duration
         self.adw_params.generalParams.DURATION = int(
             self.master_sequence.duration / DO_UNIT_TIME
@@ -539,7 +538,7 @@ class deviceManager:
 
         for option_name, value in adwin_params.as_dict().items():
             if option_name in num_params:
-                #Convert bitstring into base=2 integer
+                # Convert bitstring into base=2 integer
                 if isinstance(value, str):
                     value = int(value, base=2)
                 self.__adwin.Set_Par(Index=num_params[option_name], Value=value)
@@ -572,16 +571,18 @@ class deviceManager:
 
     def get_data(self, data_no: int, start_idx, count):
         return np.array(self.__adwin.GetData_Long(data_no, start_idx, count))
-    
+
     def get_par(self, par_no: int):
         return self.__adwin.Get_Par(par_no)
 
     def get_fpar(self, par_no: int):
         return self.__adwin.Get_FPar(par_no)
 
+
 class validator:
     def __init__():
         return NotImplementedError
+
 
 class manager:
     def __init__(self, **kwargs):
@@ -623,9 +624,9 @@ class manager:
 
     def get_par(self, par_no: int):
         return self.device_manager.get_par(par_no)
-    
+
     def get_fpar(self, par_no: int):
         return self.device_manager.get_fpar(par_no)
-    
+
     def get_data(self, data_no: int, start_idx, count):
         return self.device_manager.get_data(data_no, start_idx, count)
