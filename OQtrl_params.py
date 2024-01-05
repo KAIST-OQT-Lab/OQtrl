@@ -239,3 +239,4 @@ class adwinParams:
             **self.ana_out_datas.as_dict(),
             **self.ana_in_params.as_dict(),
         }
+    

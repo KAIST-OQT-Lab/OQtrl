@@ -542,6 +542,7 @@ class deviceManager:
                 if isinstance(value, str):
                     value = int(value, base=2)
                 self.__adwin.Set_Par(Index=num_params[option_name], Value=value)
+            
             elif option_name in num_datas:
                 self.__adwin.SetData_Long(
                     Data=value,
@@ -578,6 +579,11 @@ class deviceManager:
     def get_fpar(self, par_no: int):
         return self.__adwin.Get_FPar(par_no)
 
+    def set_process_delay(self, process_no: int, delay: float):
+        self.__adwin.Set_Processdelay(process_no, delay)
+
+    def get_process_delay(self, process_no: int):
+        return self.__adwin.Get_Processdelay(process_no)
 
 class validator:
     def __init__():
@@ -628,5 +634,12 @@ class manager:
     def get_fpar(self, par_no: int):
         return self.device_manager.get_fpar(par_no)
 
-    def get_data(self, data_no: int, start_idx, count):
+    def get_data(self, data_no: int, start_idx:int, count:int):
         return self.device_manager.get_data(data_no, start_idx, count)
+
+    def get_process_delay(self, process_no:int):
+        return self.device_manager.get_process_delay(process_no)
+
+    def set_process_delay(self, process_no:int, delay: int):
+        self.device_manager.set_process_delay(process_no, delay)
+
