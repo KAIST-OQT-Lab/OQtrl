@@ -403,25 +403,25 @@ class parTranslator(util.univTool):
     def do_ch_pattern(self):
         ch_pattern = bitarray(32)
         ch_pattern.setall(False)
+        
         for ch in self._do_chs:
             ch_pattern[-ch - 1] = True
 
         return ch_pattern.to01()
 
-    def do_ch_configuration(self):
+    def do_ch_configuration(self, do_chs):
         # each bit corresponds to 0-7, 8-15, 16-23, 24-31 channels.
-        # Find max channel number and set bit to 1
-        ch_config = bitarray(4)
-        ch_config.setall(False)
-        max_ch = max(self._do_chs)
-
-        if max_ch < 8:
+        # Analyze used channels and set the corresponding bit to 1
+        # For example, if channels 0,1,2,20,21,22 are used, the bitsrting will be 0101 
+        ch_config = bitarray('0000')
+        
+        if any(ch<8 for ch in do_chs):
             ch_config[-1] = True
-        elif max_ch < 16:
+        if any(8<=ch<16 for ch in do_chs):
             ch_config[-2] = True
-        elif max_ch < 24:
+        if any(16<=ch<24 for ch in do_chs):
             ch_config[-3] = True
-        elif max_ch < 32:
+        if any(24<=ch<32 for ch in do_chs):
             ch_config[-4] = True
 
         return ch_config.to01()
