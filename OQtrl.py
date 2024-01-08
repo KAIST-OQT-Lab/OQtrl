@@ -412,16 +412,16 @@ class parTranslator(util.univTool):
     def do_ch_configuration(self):
         # each bit corresponds to 0-7, 8-15, 16-23, 24-31 channels.
         # Analyze used channels and set the corresponding bit to 1
-        # For example, if channels 0,1,2,20,21,22 are used, the bitsrting will be 0101 
-        ch_config = bitarray('0000')
-        
-        if any(ch<8 for ch in self._do_chs):
+        # For example, if channels 0,1,2,20,21,22 are used, the bitsrting will be 0101
+        ch_config = bitarray("0000")
+
+        if any(ch < 8 for ch in self._do_chs):
             ch_config[-1] = True
-        if any(8<=ch<16 for ch in self._do_chs):
+        if any(8 <= ch < 16 for ch in self._do_chs):
             ch_config[-2] = True
-        if any(16<=ch<24 for ch in self._do_chs):
+        if any(16 <= ch < 24 for ch in self._do_chs):
             ch_config[-3] = True
-        if any(24<=ch<32 for ch in self._do_chs):
+        if any(24 <= ch < 32 for ch in self._do_chs):
             ch_config[-4] = True
 
         return ch_config.to01()
@@ -542,7 +542,7 @@ class deviceManager:
                 if isinstance(value, str):
                     value = int(value, base=2)
                 self.__adwin.Set_Par(Index=num_params[option_name], Value=value)
-            
+
             elif option_name in num_datas:
                 self.__adwin.SetData_Long(
                     Data=value,
@@ -584,6 +584,7 @@ class deviceManager:
 
     def get_process_delay(self, process_no: int):
         return self.__adwin.Get_Processdelay(process_no)
+
 
 class validator:
     def __init__():
@@ -634,12 +635,11 @@ class manager:
     def get_fpar(self, par_no: int):
         return self.device_manager.get_fpar(par_no)
 
-    def get_data(self, data_no: int, start_idx:int, count:int):
+    def get_data(self, data_no: int, start_idx: int, count: int):
         return self.device_manager.get_data(data_no, start_idx, count)
 
-    def get_process_delay(self, process_no:int):
+    def get_process_delay(self, process_no: int):
         return self.device_manager.get_process_delay(process_no)
 
-    def set_process_delay(self, process_no:int, delay: int):
+    def set_process_delay(self, process_no: int, delay: int):
         self.device_manager.set_process_delay(process_no, delay)
-
