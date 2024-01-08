@@ -20,8 +20,9 @@ AD_PROCESS_DIR = {
     "CONTINUOUS_MODE": "./ADbasic_process/Master_Process.TC1",
 }
 
-UNIT_TIME = 1e-9  # 1ns
+PROC_UNIT_TIME = 1e-9  # 1ns
 DO_UNIT_TIME = 1e-9 * 10  # 10ns
+AO_UNIT_TIME = 1e-9 * 100  # 100ns
 PROCESSORTYPE = "12"
 
 
@@ -91,7 +92,7 @@ class digitalPatternABS(util.univTool):
 
 
 @dataclass(init=True)
-class analogPattern(util.seqTool.patternGenerator):
+class analogPattern:
     pattern: List[float] = None
 
     def __add__(self, other):
@@ -104,7 +105,7 @@ class analogPattern(util.seqTool.patternGenerator):
         return len(self.pattern)
 
 
-class slaveSequence(slaveProperties, util.painter):
+class slaveSequence(slaveProperties, util.painter, util.patternGenerator):
     def __init__(
         self,
         name: str,
@@ -184,13 +185,16 @@ class masterSequence(masterProperties, util.painter):
     def __setitem__(self, key, value):
         self.slave_sequences[key].pattern.pattern = value
 
-    def set_update_period(self, DI: float, AI: float, AO: float):
+    def set_update_period(self, **kwargs: Literal["DI", "AI", "AO"]):
         """Set update period for each slave sequence types.
         Args:
             DI (float): detects rising/falling edge every DI seconds
             AI (float): AI samples analog input every AI seconds.
             AO (float): AO outputs analog output every AO seconds.
         """
+        DI = kwargs.get("DI", None)
+        AI = kwargs.get("AI", None)
+        AO = kwargs.get("AO", None)
 
         self.update_period = {"DI": DI, "AI": AI, "AO": AO}
 
