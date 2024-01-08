@@ -22,7 +22,7 @@ AD_PROCESS_DIR = {
 
 PROC_UNIT_TIME = 1e-9  # 1ns
 DO_UNIT_TIME = 1e-9 * 10  # 10ns
-AO_UNIT_TIME = 1e-9 * 100  # 100ns
+# AO_UNIT_TIME = 1e-9 * 100  # 100ns
 PROCESSORTYPE = "12"
 
 
@@ -319,77 +319,28 @@ class seqTransltaor(util.univTool):
 
         return self.conv2C_int(final_pattern)
 
-    def ao(self):
-        update_period = float(self.settings.AO.AO_UPDATE_PERIOD)
-        duration = float(self.settings.GENERAL.duration)
-        # Find empty channels
-        tot_channels = set(np.arange(1, 9))
-        empty_channels = list(tot_channels - self.AO_chs)
-        dump_pattern = slaveSequence.pattern(
-            "AO", data=np.zeros(len(self.AO_slaves[0].pattern._data))
+    def ao(self, ao_slaves: List[slaveSequence]):
+        ch_index = [2, 1, 4, 3, 6, 5, 8, 7]
+        # Sorting channels in ch_index order. ch2, ch1, ch4, ch3, ch6, ch5, ch8, ch7
+        ao_slaves = sorted(ao_slaves, key=lambda x: ch_index.index(x.channel))
+        # Generate pattern 10000*8 2D array in ao_slaves order
+        pattern = np.array([slave.pattern.pattern for slave in ao_slaves]).T
+        # Digitize pattern to 16bit
+        digitized = self.a2d(pattern, 16).astype()
+        # Convert to bitpattern array with keeping dimensions
+        bitpattern = (np.vectorize(lambda x: f"{x:016b}")(digitized)).astype(str)
+        # Convert to pakced 8 array
+        result = np.concatenate(
+            [
+                np.char.add(bitpattern[:, i], bitpattern[:, i + 1])[:, np.newaxis]
+                for i in range(0, 7, 2)
+            ],
+            axis=1,
         )
-        dump_slaves = [
-            slaveSequence(
-                types="AO",
-                duration=duration,
-                update_period=update_period,
-                channel=ch,
-                pattern=dump_pattern,
-            )
-            for ch in empty_channels
-        ]
-        self.AO_slaves += dump_slaves
-        # Sort by channels [8,7,6,...,2,1]
-        self.AO_slaves.sort()
-        # Pattern digitize to 16bit
-        AOs = [x.pattern._data for x in self.AO_slaves]
-        digitized_AOs = [
-            np.array(miscs.analog.analog_to_digital(x), dtype=np.int64) for x in AOs
-        ]
-        bitpattern_AOs = []
-        for x in digitized_AOs:
-            bitpattern = [f"{val:016b}" for val in x]
-            bitpattern_AOs.append(bitpattern)
-        print(len(bitpattern_AOs))
-        # zip to 32bit pattern, [8,7],[6,5],[4,3],[2,1]
-        onetwo = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-1], bitpattern_AOs[-2]]
+        # Convert to final integer 1D array
+        final_pattern = np.array(
+            [int("".join(x), base=2) for x in result], dtype=np.int32
         )
-        threefour = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-3], bitpattern_AOs[-4]]
-        )
-        fivesix = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-5], bitpattern_AOs[-6]]
-        )
-        seveneight = miscs.digital.DO_FIFO.add_string_lists(
-            [bitpattern_AOs[-7], bitpattern_AOs[-8]]
-        )
-
-        # converted
-        converted = []
-        for i in range(len(onetwo)):
-            if i % 4 == 0:
-                try:
-                    converted.append(int(onetwo.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 1:
-                try:
-                    converted.append(int(threefour.pop(0, base=2)))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 2:
-                try:
-                    converted.append(int(fivesix.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-            elif i % 4 == 3:
-                try:
-                    converted.append(int(seveneight.pop(0), base=2))
-                except TypeError:
-                    converted.append(0)
-
-        result = self.create_int_values_C(converted)
 
         return NotImplementedError
 

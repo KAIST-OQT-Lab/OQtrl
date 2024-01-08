@@ -121,7 +121,7 @@ class patternGenerator:
         raw_ramp_pattern = np.arange(init_volt, end_volt, update_steps)
 
         # update pattern
-        ramp_pattern = self.gen_pattern(raw_ramp_pattern, init_time, end_time)
+        ramp_pattern = self.update_pattern(raw_ramp_pattern, init_time, end_time)
 
         self.pattern.pattern = ramp_pattern
 
@@ -214,32 +214,54 @@ class univTool:
         return reduce(np.char.add, lists).tolist()
 
     @staticmethod
-    def a2d(val: float, bits: int, range: tuple = (-10, 10)) -> int:
-        """Convert analog value to digital value
+    def a2d(val: np.ndarray, bits: int, range: tuple = (-10, 10)) -> np.ndarray:
+        """Convert analog values in a NumPy array to digital values
 
         Args:
-            val (float): analog value
+            val (np.ndarray): analog values (float)
             bits (int): number of bits
-            range (tuple, optional): (min,max) of analog value. Defaults to (-10,10).
+            range (tuple, optional): (min,max) of analog values. Defaults to (-10,10).
 
         Returns:
-            int: digital value
+            np.ndarray: digital values (int)
         """
-        return int((val - range[0]) / (range[1] - range[0]) * (2**bits - 1))
+
+        # Handle single float input by converting to a temporary array
+        if isinstance(val, float):
+            val = np.array([val])
+
+        # Calculate scaling factor and offset
+        scale = (2**bits - 1) / (range[1] - range[0])
+        offset = -range[0] * scale
+
+        # Apply scaling and offset to each element in the array, then convert to int using np.floor
+        return np.floor(val * scale + offset).astype(
+            int
+        )  # Use astype only for the final conversion
 
     @staticmethod
-    def d2a(val: int, bits: int, range: tuple = (-10, 10)) -> float:
-        """Convert digital value to analog value
+    def d2a(val, bits: int, range: tuple = (-10, 10)) -> np.ndarray:
+        """Convert digital values to analog values
 
         Args:
-            val (int): digital value
+            val (int or np.ndarray): digital values (int)
             bits (int): number of bits
-            range (tuple, optional): (min,max) of analog value. Defaults to (-10,10).
+            range (tuple, optional): (min,max) of analog values. Defaults to (-10,10).
 
         Returns:
-            float: analog value
+            np.ndarray: analog values (float)
         """
-        return val / (2**bits - 1) * (range[1] - range[0]) + range[0]
+
+        # Handle single int input by converting to a temporary array
+        if isinstance(val, int):
+            val = np.array([val])
+
+        # Calculate scaling factor and offset
+        scale = (range[1] - range[0]) / (2**bits - 1)
+        offset = range[0]
+
+        # Apply scaling and offset to each element, preserving array structure
+        return val * scale + offset
 
     @staticmethod
     def conv2C_int(array) -> ctypes.c_int32:
